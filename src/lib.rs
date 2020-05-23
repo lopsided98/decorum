@@ -151,9 +151,9 @@ pub trait Nan: Encoding {
 /// floating-point value. Infinities and `NaN`s are described by the `Infinite`
 /// and `NaN` sub-traits.
 pub trait Encoding: Copy {
-    const MAX: Self;
-    const MIN: Self;
-    const MIN_POSITIVE: Self;
+    const MAX_REAL: Self;
+    const MIN_REAL: Self;
+    const MIN_POSITIVE_REAL: Self;
     const EPSILON: Self;
 
     fn classify(self) -> FpCategory;

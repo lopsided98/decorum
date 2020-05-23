@@ -352,11 +352,11 @@ where
     P: Constraint<T>,
 {
     fn min_value() -> Self {
-        Encoding::MIN
+        Encoding::MIN_REAL
     }
 
     fn max_value() -> Self {
-        Encoding::MAX
+        Encoding::MAX_REAL
     }
 }
 
@@ -456,9 +456,9 @@ where
     T: Float + Primitive,
     P: Constraint<T>,
 {
-    const MAX: Self = ConstrainedFloat::from_inner_unchecked(T::MAX);
-    const MIN: Self = ConstrainedFloat::from_inner_unchecked(T::MIN);
-    const MIN_POSITIVE: Self = ConstrainedFloat::from_inner_unchecked(T::MIN_POSITIVE);
+    const MAX_REAL: Self = ConstrainedFloat::from_inner_unchecked(T::MAX_REAL);
+    const MIN_REAL: Self = ConstrainedFloat::from_inner_unchecked(T::MIN_REAL);
+    const MIN_POSITIVE_REAL: Self = ConstrainedFloat::from_inner_unchecked(T::MIN_POSITIVE_REAL);
     const EPSILON: Self = ConstrainedFloat::from_inner_unchecked(T::EPSILON);
 
     fn classify(self) -> FpCategory {
@@ -519,15 +519,15 @@ where
     }
 
     fn max_value() -> Self {
-        Encoding::MAX
+        Encoding::MAX_REAL
     }
 
     fn min_value() -> Self {
-        Encoding::MIN
+        Encoding::MIN_REAL
     }
 
     fn min_positive_value() -> Self {
-        Encoding::MIN_POSITIVE
+        Encoding::MIN_POSITIVE_REAL
     }
 
     fn epsilon() -> Self {
@@ -1592,15 +1592,15 @@ macro_rules! impl_foreign_real {
         #[cfg(feature = "std")]
         impl ForeignReal for $t {
             fn max_value() -> Self {
-                Encoding::MAX
+                Encoding::MAX_REAL
             }
 
             fn min_value() -> Self {
-                Encoding::MIN
+                Encoding::MIN_REAL
             }
 
             fn min_positive_value() -> Self {
-                Encoding::MIN_POSITIVE
+                Encoding::MIN_POSITIVE_REAL
             }
 
             fn epsilon() -> Self {
