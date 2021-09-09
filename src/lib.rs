@@ -96,7 +96,7 @@ pub mod hash;
 mod proxy;
 
 use crate::cmp::IntrinsicOrd;
-use crate::constraint::{FiniteConstraint, NotNanConstraint, UnitConstraint};
+use crate::constraint::{Constraint, FiniteConstraint, NotNanConstraint, UnitConstraint};
 
 pub use crate::proxy::Proxy;
 
@@ -619,3 +619,21 @@ macro_rules! impl_primitive {
 }
 impl_primitive!(primitive => f32);
 impl_primitive!(primitive => f64);
+
+trait PrimitiveExt: Float + Primitive {
+    fn expect_into_proxy<P>(self) -> Proxy<Self, P>
+    where
+        P: Constraint<Self>;
+}
+
+impl<T> PrimitiveExt for T
+where
+    T: Float + Primitive,
+{
+    fn expect_into_proxy<P>(self) -> Proxy<Self, P>
+    where
+        P: Constraint<Self>,
+    {
+        Proxy::expect_from_primitive(self)
+    }
+}

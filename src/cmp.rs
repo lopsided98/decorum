@@ -66,7 +66,7 @@ use core::cmp::Ordering;
 
 use crate::constraint::Constraint;
 use crate::proxy::Proxy;
-use crate::{Float, Nan, Primitive, ToCanonicalBits};
+use crate::{Float, Nan, Primitive, PrimitiveExt as _, ToCanonicalBits};
 
 /// Equivalence relation for floating-point primitives.
 ///
@@ -270,7 +270,7 @@ where
     P: Constraint<T>,
 {
     fn is_undefined(&self) -> bool {
-        self.into_inner().is_nan()
+        self.into_primitive().is_nan()
     }
 
     fn min_max_or_undefined(&self, other: &Self) -> (Self, Self) {
@@ -278,16 +278,16 @@ where
         // avoids the need for implementations for each combination of proxy and
         // constraint (proxy types do not always implement `Nan`, but primitive
         // types do).
-        let a = self.into_inner();
-        let b = other.into_inner();
+        let a = self.into_primitive();
+        let b = other.into_primitive();
         let (min, max) = a.min_max_or_undefined(&b);
         // Both `min` and `max` are `NaN` if `a` and `b` are incomparable.
         if min.is_nan() {
-            let nan = T::NAN.into();
+            let nan = T::NAN.expect_into_proxy();
             (nan, nan)
         }
         else {
-            (min.into(), max.into())
+            (min.expect_into_proxy(), max.expect_into_proxy())
         }
     }
 }
