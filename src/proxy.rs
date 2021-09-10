@@ -68,15 +68,15 @@ use crate::{
 #[cfg_attr(feature = "serialize-serde", derive(Deserialize, Serialize))]
 #[repr(transparent)]
 pub struct Proxy<T, P> {
-    primitive: T,
+    inner: T,
     #[cfg_attr(feature = "serialize-serde", serde(skip))]
     phantom: PhantomData<*const P>,
 }
 
 impl<T, P> Proxy<T, P> {
-    const fn from_primitive_unchecked(inner: T) -> Self {
+    const fn from_inner_unchecked(inner: T) -> Self {
         Proxy {
-            primitive: inner,
+            inner,
             phantom: PhantomData,
         }
     }
@@ -107,7 +107,7 @@ where
     ///     x * 2.0
     /// }
     ///
-    /// let y = f(R64::try_from_primitive(2.0).unwrap());
+    /// let y = f(R64::try_from_inner(2.0).unwrap());
     /// // The `TryFrom` and `TryInto` traits can also be used.
     /// let z = f(2.0.try_into().unwrap());
     /// ```
@@ -118,11 +118,11 @@ where
     /// use decorum::R64;
     ///
     /// // `R64` does not allow `NaN`s, but `0.0 / 0.0` produces a `NaN`.
-    /// let x = R64::try_from_primitive(0.0 / 0.0).unwrap(); // Panics.
+    /// let x = R64::try_from_inner(0.0 / 0.0).unwrap(); // Panics.
     /// ```
-    pub fn try_from_primitive(inner: T) -> Result<Self, ConstraintViolation> {
+    pub fn try_from_inner(inner: T) -> Result<Self, ConstraintViolation> {
         P::filter_map(inner).map(|inner| Proxy {
-            primitive: inner,
+            inner,
             phantom: PhantomData,
         })
     }
@@ -146,7 +146,7 @@ where
     ///     x * 2.0
     /// }
     ///
-    /// let y = f(R64::expect_from_primitive(2.0));
+    /// let y = f(R64::expect_from_inner(2.0));
     /// ```
     ///
     /// Performing a conversion that panics:
@@ -155,10 +155,10 @@ where
     /// use decorum::R64;
     ///
     /// // `R64` does not allow `NaN`s, but `0.0 / 0.0` produces a `NaN`.
-    /// let x = R64::expect_from_primitive(0.0 / 0.0); // Panics.
+    /// let x = R64::expect_from_inner(0.0 / 0.0); // Panics.
     /// ```
-    pub fn expect_from_primitive(inner: T) -> Self {
-        Self::try_from_primitive(inner).expect_constrained()
+    pub fn expect_from_inner(inner: T) -> Self {
+        Self::try_from_inner(inner).expect_constrained()
     }
 
     /// Converts a proxy into a primitive floating-point value.
@@ -176,12 +176,12 @@ where
     ///     // ...
     /// }
     ///
-    /// let x: f64 = f().into_primitive();
+    /// let x: f64 = f().into_inner();
     /// // The `From` and `Into` traits can also be used.
     /// let y: f64 = f().into();
     /// ```
-    pub fn into_primitive(self) -> T {
-        self.primitive
+    pub fn into_inner(self) -> T {
+        self.inner
     }
 
     /// Converts a proxy into another proxy that is capable of representing a
@@ -204,7 +204,7 @@ where
     where
         Q: Constraint<T> + SubsetOf<P>,
     {
-        Self::from_primitive_unchecked(other.into_primitive())
+        Self::from_inner_unchecked(other.into_inner())
     }
 
     /// Converts a proxy into another proxy that is capable of representing a
@@ -227,28 +227,28 @@ where
     where
         Q: Constraint<T> + SupersetOf<P>,
     {
-        Proxy::from_primitive_unchecked(self.into_primitive())
+        Proxy::from_inner_unchecked(self.into_inner())
     }
 
     fn expect_map<F>(self, f: F) -> Self
     where
         F: Fn(T) -> T,
     {
-        Proxy::expect_from_primitive(f(self.into_primitive()))
+        Proxy::expect_from_inner(f(self.into_inner()))
     }
 
     fn map_unchecked<F>(self, f: F) -> Self
     where
         F: Fn(T) -> T,
     {
-        Proxy::from_primitive_unchecked(f(self.into_primitive()))
+        Proxy::from_inner_unchecked(f(self.into_inner()))
     }
 
     fn expect_zip_map<F>(self, other: Self, f: F) -> Self
     where
         F: Fn(T, T) -> T,
     {
-        Proxy::expect_from_primitive(f(self.into_primitive(), other.into_primitive()))
+        Proxy::expect_from_inner(f(self.into_inner(), other.into_inner()))
     }
 }
 
@@ -265,8 +265,8 @@ where
     }
 
     fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
-        self.into_primitive()
-            .abs_diff_eq(&other.into_primitive(), epsilon.into_primitive())
+        self.into_inner()
+            .abs_diff_eq(&other.into_inner(), epsilon.into_inner())
     }
 }
 
@@ -320,7 +320,7 @@ where
     P: Constraint<T>,
 {
     fn as_ref(&self) -> &T {
-        &self.primitive
+        &self.inner
     }
 }
 
@@ -344,7 +344,7 @@ where
 {
     fn clone(&self) -> Self {
         Proxy {
-            primitive: self.primitive,
+            inner: self.inner,
             phantom: PhantomData,
         }
     }
@@ -385,7 +385,7 @@ where
     P: Constraint<T>,
 {
     fn default() -> Self {
-        // TODO: This can probably use `from_primitive_unchecked`.
+        // TODO: This can probably use `from_inner_unchecked`.
         T::default().expect_into_proxy()
     }
 }
@@ -449,29 +449,29 @@ where
     T: Float + Primitive,
     P: Constraint<T>,
 {
-    const MAX_FINITE: Self = Proxy::from_primitive_unchecked(T::MAX_FINITE);
-    const MIN_FINITE: Self = Proxy::from_primitive_unchecked(T::MIN_FINITE);
-    const MIN_POSITIVE_NORMAL: Self = Proxy::from_primitive_unchecked(T::MIN_POSITIVE_NORMAL);
-    const EPSILON: Self = Proxy::from_primitive_unchecked(T::EPSILON);
+    const MAX_FINITE: Self = Proxy::from_inner_unchecked(T::MAX_FINITE);
+    const MIN_FINITE: Self = Proxy::from_inner_unchecked(T::MIN_FINITE);
+    const MIN_POSITIVE_NORMAL: Self = Proxy::from_inner_unchecked(T::MIN_POSITIVE_NORMAL);
+    const EPSILON: Self = Proxy::from_inner_unchecked(T::EPSILON);
 
     fn classify(self) -> FpCategory {
-        T::classify(self.into_primitive())
+        T::classify(self.into_inner())
     }
 
     fn is_normal(self) -> bool {
-        T::is_normal(self.into_primitive())
+        T::is_normal(self.into_inner())
     }
 
     fn is_sign_positive(self) -> bool {
-        self.into_primitive().is_sign_positive()
+        self.into_inner().is_sign_positive()
     }
 
     fn is_sign_negative(self) -> bool {
-        self.into_primitive().is_sign_negative()
+        self.into_inner().is_sign_negative()
     }
 
     fn integer_decode(self) -> (u64, i16, i8) {
-        T::integer_decode(self.into_primitive())
+        T::integer_decode(self.into_inner())
     }
 }
 
@@ -608,15 +608,15 @@ where
     }
 
     fn neg_zero() -> Self {
-        Self::expect_from_primitive(T::neg_zero())
+        Self::expect_from_inner(T::neg_zero())
     }
 
     fn is_sign_positive(self) -> bool {
-        Encoding::is_sign_positive(self.into_primitive())
+        Encoding::is_sign_positive(self.into_inner())
     }
 
     fn is_sign_negative(self) -> bool {
-        Encoding::is_sign_negative(self.into_primitive())
+        Encoding::is_sign_negative(self.into_inner())
     }
 
     fn signum(self) -> Self {
@@ -851,7 +851,7 @@ where
     P: Constraint<f32>,
 {
     fn from(proxy: Proxy<f32, P>) -> Self {
-        proxy.into_primitive()
+        proxy.into_inner()
     }
 }
 
@@ -860,7 +860,7 @@ where
     P: Constraint<f64>,
 {
     fn from(proxy: Proxy<f64, P>) -> Self {
-        proxy.into_primitive()
+        proxy.into_inner()
     }
 }
 
@@ -868,8 +868,8 @@ impl<T> From<T> for Total<T>
 where
     T: Float + Primitive,
 {
-    fn from(primitive: T) -> Self {
-        Self::from_primitive_unchecked(primitive)
+    fn from(inner: T) -> Self {
+        Self::from_inner_unchecked(inner)
     }
 }
 
@@ -880,51 +880,51 @@ where
     P: Constraint<T>,
 {
     fn from_i8(value: i8) -> Option<Self> {
-        T::from_i8(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_i8(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_u8(value: u8) -> Option<Self> {
-        T::from_u8(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_u8(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_i16(value: i16) -> Option<Self> {
-        T::from_i16(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_i16(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_u16(value: u16) -> Option<Self> {
-        T::from_u16(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_u16(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_i32(value: i32) -> Option<Self> {
-        T::from_i32(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_i32(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_u32(value: u32) -> Option<Self> {
-        T::from_u32(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_u32(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_i64(value: i64) -> Option<Self> {
-        T::from_i64(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_i64(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_u64(value: u64) -> Option<Self> {
-        T::from_u64(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_u64(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_isize(value: isize) -> Option<Self> {
-        T::from_isize(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_isize(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_usize(value: usize) -> Option<Self> {
-        T::from_usize(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_usize(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_f32(value: f32) -> Option<Self> {
-        T::from_f32(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_f32(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 
     fn from_f64(value: f64) -> Option<Self> {
-        T::from_f64(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from_f64(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 }
 
@@ -936,7 +936,7 @@ where
     type Err = <T as FromStr>::Err;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        T::from_str(string).map(Self::expect_from_primitive)
+        T::from_str(string).map(Self::expect_from_inner)
     }
 }
 
@@ -958,15 +958,15 @@ where
     T: Float + Primitive,
     P: Constraint<T> + Member<InfiniteSet>,
 {
-    const INFINITY: Self = Proxy::from_primitive_unchecked(T::INFINITY);
-    const NEG_INFINITY: Self = Proxy::from_primitive_unchecked(T::NEG_INFINITY);
+    const INFINITY: Self = Proxy::from_inner_unchecked(T::INFINITY);
+    const NEG_INFINITY: Self = Proxy::from_inner_unchecked(T::NEG_INFINITY);
 
     fn is_infinite(self) -> bool {
-        self.into_primitive().is_infinite()
+        self.into_inner().is_infinite()
     }
 
     fn is_finite(self) -> bool {
-        self.into_primitive().is_finite()
+        self.into_inner().is_finite()
     }
 }
 
@@ -1029,10 +1029,10 @@ where
     T: Float + Primitive,
     P: Constraint<T> + Member<NanSet>,
 {
-    const NAN: Self = Proxy::from_primitive_unchecked(T::NAN);
+    const NAN: Self = Proxy::from_inner_unchecked(T::NAN);
 
     fn is_nan(self) -> bool {
-        self.into_primitive().is_nan()
+        self.into_inner().is_nan()
     }
 }
 
@@ -1044,7 +1044,7 @@ where
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        Proxy::from_primitive_unchecked(-self.into_primitive())
+        Proxy::from_inner_unchecked(-self.into_inner())
     }
 }
 
@@ -1060,7 +1060,7 @@ where
     fn from_str_radix(source: &str, radix: u32) -> Result<Self, Self::FromStrRadixErr> {
         T::from_str_radix(source, radix)
             .map_err(|_| ())
-            .and_then(|primitive| Proxy::try_from_primitive(primitive).map_err(|_| ()))
+            .and_then(|inner| Proxy::try_from_inner(inner).map_err(|_| ()))
     }
 }
 
@@ -1073,7 +1073,7 @@ where
     where
         U: ToPrimitive,
     {
-        T::from(value).and_then(|inner| Proxy::try_from_primitive(inner).ok())
+        T::from(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
     }
 }
 
@@ -1083,7 +1083,7 @@ where
     P: Constraint<T>,
 {
     fn one() -> Self {
-        Proxy::from_primitive_unchecked(T::one())
+        Proxy::from_inner_unchecked(T::one())
     }
 }
 
@@ -1113,7 +1113,7 @@ where
     P: Constraint<T>,
 {
     fn eq(&self, other: &T) -> bool {
-        if let Ok(other) = Self::try_from_primitive(*other) {
+        if let Ok(other) = Self::try_from_inner(*other) {
             Self::eq(self, &other)
         }
         else {
@@ -1138,7 +1138,7 @@ where
     P: Constraint<T>,
 {
     fn partial_cmp(&self, other: &T) -> Option<Ordering> {
-        Self::try_from_primitive(*other)
+        Self::try_from_inner(*other)
             .ok()
             .and_then(|other| Self::partial_cmp(self, &other))
     }
@@ -1162,22 +1162,22 @@ where
     T: Float + Primitive,
     P: Constraint<T>,
 {
-    const E: Self = Proxy::from_primitive_unchecked(Real::E);
-    const PI: Self = Proxy::from_primitive_unchecked(Real::PI);
-    const FRAC_1_PI: Self = Proxy::from_primitive_unchecked(Real::FRAC_1_PI);
-    const FRAC_2_PI: Self = Proxy::from_primitive_unchecked(Real::FRAC_2_PI);
-    const FRAC_2_SQRT_PI: Self = Proxy::from_primitive_unchecked(Real::FRAC_2_SQRT_PI);
-    const FRAC_PI_2: Self = Proxy::from_primitive_unchecked(Real::FRAC_PI_2);
-    const FRAC_PI_3: Self = Proxy::from_primitive_unchecked(Real::FRAC_PI_3);
-    const FRAC_PI_4: Self = Proxy::from_primitive_unchecked(Real::FRAC_PI_4);
-    const FRAC_PI_6: Self = Proxy::from_primitive_unchecked(Real::FRAC_PI_6);
-    const FRAC_PI_8: Self = Proxy::from_primitive_unchecked(Real::FRAC_PI_8);
-    const SQRT_2: Self = Proxy::from_primitive_unchecked(Real::SQRT_2);
-    const FRAC_1_SQRT_2: Self = Proxy::from_primitive_unchecked(Real::FRAC_1_SQRT_2);
-    const LN_2: Self = Proxy::from_primitive_unchecked(Real::LN_2);
-    const LN_10: Self = Proxy::from_primitive_unchecked(Real::LN_10);
-    const LOG2_E: Self = Proxy::from_primitive_unchecked(Real::LOG2_E);
-    const LOG10_E: Self = Proxy::from_primitive_unchecked(Real::LOG10_E);
+    const E: Self = Proxy::from_inner_unchecked(Real::E);
+    const PI: Self = Proxy::from_inner_unchecked(Real::PI);
+    const FRAC_1_PI: Self = Proxy::from_inner_unchecked(Real::FRAC_1_PI);
+    const FRAC_2_PI: Self = Proxy::from_inner_unchecked(Real::FRAC_2_PI);
+    const FRAC_2_SQRT_PI: Self = Proxy::from_inner_unchecked(Real::FRAC_2_SQRT_PI);
+    const FRAC_PI_2: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_2);
+    const FRAC_PI_3: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_3);
+    const FRAC_PI_4: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_4);
+    const FRAC_PI_6: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_6);
+    const FRAC_PI_8: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_8);
+    const SQRT_2: Self = Proxy::from_inner_unchecked(Real::SQRT_2);
+    const FRAC_1_SQRT_2: Self = Proxy::from_inner_unchecked(Real::FRAC_1_SQRT_2);
+    const LN_2: Self = Proxy::from_inner_unchecked(Real::LN_2);
+    const LN_10: Self = Proxy::from_inner_unchecked(Real::LN_10);
+    const LOG2_E: Self = Proxy::from_inner_unchecked(Real::LOG2_E);
+    const LOG10_E: Self = Proxy::from_inner_unchecked(Real::LOG10_E);
 
     fn floor(self) -> Self {
         self.expect_map(Real::floor)
@@ -1205,10 +1205,10 @@ where
 
     #[cfg(feature = "std")]
     fn mul_add(self, a: Self, b: Self) -> Self {
-        Proxy::expect_from_primitive(<T as Real>::mul_add(
-            self.into_primitive(),
-            a.into_primitive(),
-            b.into_primitive(),
+        Proxy::expect_from_inner(<T as Real>::mul_add(
+            self.into_inner(),
+            a.into_inner(),
+            b.into_inner(),
         ))
     }
 
@@ -1314,10 +1314,10 @@ where
 
     #[cfg(feature = "std")]
     fn sin_cos(self) -> (Self, Self) {
-        let (sin, cos) = self.into_primitive().sin_cos();
+        let (sin, cos) = self.into_inner().sin_cos();
         (
-            Proxy::from_primitive_unchecked(sin),
-            Proxy::from_primitive_unchecked(cos),
+            Proxy::from_inner_unchecked(sin),
+            Proxy::from_inner_unchecked(cos),
         )
     }
 
@@ -1368,10 +1368,10 @@ where
         epsilon: Self::Epsilon,
         max_relative: Self::Epsilon,
     ) -> bool {
-        self.into_primitive().relative_eq(
-            &other.into_primitive(),
-            epsilon.into_primitive(),
-            max_relative.into_primitive(),
+        self.into_inner().relative_eq(
+            &other.into_inner(),
+            epsilon.into_inner(),
+            max_relative.into_inner(),
         )
     }
 }
@@ -1451,11 +1451,11 @@ where
     }
 
     fn is_positive(&self) -> bool {
-        self.into_primitive().is_positive()
+        self.into_inner().is_positive()
     }
 
     fn is_negative(&self) -> bool {
-        self.into_primitive().is_negative()
+        self.into_inner().is_negative()
     }
 }
 
@@ -1524,7 +1524,7 @@ where
     type Bits = <T as ToCanonicalBits>::Bits;
 
     fn to_canonical_bits(self) -> Self::Bits {
-        self.primitive.to_canonical_bits()
+        self.inner.to_canonical_bits()
     }
 }
 
@@ -1534,51 +1534,51 @@ where
     P: Constraint<T>,
 {
     fn to_i8(&self) -> Option<i8> {
-        self.into_primitive().to_i8()
+        self.into_inner().to_i8()
     }
 
     fn to_u8(&self) -> Option<u8> {
-        self.into_primitive().to_u8()
+        self.into_inner().to_u8()
     }
 
     fn to_i16(&self) -> Option<i16> {
-        self.into_primitive().to_i16()
+        self.into_inner().to_i16()
     }
 
     fn to_u16(&self) -> Option<u16> {
-        self.into_primitive().to_u16()
+        self.into_inner().to_u16()
     }
 
     fn to_i32(&self) -> Option<i32> {
-        self.into_primitive().to_i32()
+        self.into_inner().to_i32()
     }
 
     fn to_u32(&self) -> Option<u32> {
-        self.into_primitive().to_u32()
+        self.into_inner().to_u32()
     }
 
     fn to_i64(&self) -> Option<i64> {
-        self.into_primitive().to_i64()
+        self.into_inner().to_i64()
     }
 
     fn to_u64(&self) -> Option<u64> {
-        self.into_primitive().to_u64()
+        self.into_inner().to_u64()
     }
 
     fn to_isize(&self) -> Option<isize> {
-        self.into_primitive().to_isize()
+        self.into_inner().to_isize()
     }
 
     fn to_usize(&self) -> Option<usize> {
-        self.into_primitive().to_usize()
+        self.into_inner().to_usize()
     }
 
     fn to_f32(&self) -> Option<f32> {
-        self.into_primitive().to_f32()
+        self.into_inner().to_f32()
     }
 
     fn to_f64(&self) -> Option<f64> {
-        self.into_primitive().to_f64()
+        self.into_inner().to_f64()
     }
 }
 
@@ -1593,8 +1593,8 @@ where
     }
 
     fn ulps_eq(&self, other: &Self, epsilon: Self::Epsilon, max_ulps: u32) -> bool {
-        self.into_primitive()
-            .ulps_eq(&other.into_primitive(), epsilon.into_primitive(), max_ulps)
+        self.into_inner()
+            .ulps_eq(&other.into_inner(), epsilon.into_inner(), max_ulps)
     }
 }
 
@@ -1614,11 +1614,11 @@ where
     P: Constraint<T>,
 {
     fn zero() -> Self {
-        Proxy::from_primitive_unchecked(T::zero())
+        Proxy::from_inner_unchecked(T::zero())
     }
 
     fn is_zero(&self) -> bool {
-        self.into_primitive().is_zero()
+        self.into_inner().is_zero()
     }
 }
 
@@ -1847,8 +1847,8 @@ macro_rules! impl_try_from {
         impl TryFrom<$t> for $p<$t> {
             type Error = ConstraintViolation;
 
-            fn try_from(primitive: $t) -> Result<Self, Self::Error> {
-                Self::try_from_primitive(primitive)
+            fn try_from(inner: $t) -> Result<Self, Self::Error> {
+                Self::try_from_inner(inner)
             }
         }
     };
@@ -1957,10 +1957,7 @@ mod tests {
             2.0.try_into().unwrap(),
             3.0.try_into().unwrap(),
         ];
-        assert_eq!(
-            xs.iter().cloned().sum::<R32>(),
-            R32::expect_from_primitive(6.0)
-        );
+        assert_eq!(xs.iter().cloned().sum::<R32>(), R32::expect_from_inner(6.0));
     }
 
     #[test]
@@ -1972,7 +1969,7 @@ mod tests {
         ];
         assert_eq!(
             xs.iter().cloned().product::<R32>(),
-            R32::expect_from_primitive(6.0),
+            R32::expect_from_inner(6.0),
         );
     }
 

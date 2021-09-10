@@ -103,29 +103,30 @@ implements `Float` from both Decorum and [`num-traits`].
 Proxy types are used via conversions to and from primitive floating-point
 types and other proxy types.
 
-| Conversion              | Input     | Output    | Violation |
-|-------------------------|-----------|-----------|-----------|
-| `try_from_primitive`    | primitive | proxy     | error     |
-| `expect_from_primitive` | primitive | proxy     | panic     |
-| `into_primitive`        | proxy     | primitive | n/a       |
-| `from_subset`           | proxy     | proxy     | n/a       |
-| `into_superset`         | proxy     | proxy     | n/a       |
+| Conversion          | Input     | Output    | Violation |
+|---------------------|-----------|-----------|-----------|
+| `try_from_inner`    | primitive | proxy     | error     |
+| `expect_from_inner` | primitive | proxy     | panic     |
+| `into_inner`        | proxy     | primitive | n/a       |
+| `from_subset`       | proxy     | proxy     | n/a       |
+| `into_superset`     | proxy     | proxy     | n/a       |
 
-The `try_from_primitive` and `into_primitive` conversions move primitive
-floating-point values into and out of proxies. The `into_superset` and
-`from_subset` conversions provide an inexpensive way to convert between proxy
-types with different but compatible constraints. All conversions also support
-the standard `From`/`Into` and `TryFrom`/`TryInto` traits, which can also be
-applied to literals:
+The `try_from_inner` and `into_inner` conversions move primitive floating-point
+values into and out of proxies. The `into_superset` and `from_subset`
+conversions provide an inexpensive way to convert between proxy types with
+different but compatible constraints. All conversions also support the standard
+`From`/`Into` and `TryFrom`/`TryInto` traits, which can also be applied to
+literals and should be preferred:
 
 ```rust
+use core::convert::{TryFrom, TryInto};
 use decorum::R32;
 
 fn f(x: R32) -> R32 {
     x * 2.0
 }
 let y: R32 = 3.1459.try_into().unwrap();
-let z = f(R32::expect_from_primitive(2.7182));
+let z = f(R32::try_from(2.7182).unwrap());
 let w: f32 = z.into();
 ```
 

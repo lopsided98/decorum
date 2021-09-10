@@ -620,20 +620,22 @@ macro_rules! impl_primitive {
 impl_primitive!(primitive => f32);
 impl_primitive!(primitive => f64);
 
-trait PrimitiveExt: Float + Primitive {
+trait PrimitiveExt: Primitive {
     fn expect_into_proxy<P>(self) -> Proxy<Self, P>
     where
+        Self: Float,
         P: Constraint<Self>;
 }
 
 impl<T> PrimitiveExt for T
 where
-    T: Float + Primitive,
+    T: Primitive,
 {
     fn expect_into_proxy<P>(self) -> Proxy<Self, P>
     where
+        Self: Float,
         P: Constraint<Self>,
     {
-        Proxy::expect_from_primitive(self)
+        Proxy::expect_from_inner(self)
     }
 }

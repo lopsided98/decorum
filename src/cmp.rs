@@ -270,7 +270,7 @@ where
     P: Constraint<T>,
 {
     fn is_undefined(&self) -> bool {
-        self.into_primitive().is_nan()
+        self.into_inner().is_nan()
     }
 
     fn min_max_or_undefined(&self, other: &Self) -> (Self, Self) {
@@ -278,8 +278,8 @@ where
         // avoids the need for implementations for each combination of proxy and
         // constraint (proxy types do not always implement `Nan`, but primitive
         // types do).
-        let a = self.into_primitive();
-        let b = other.into_primitive();
+        let a = self.into_inner();
+        let b = other.into_inner();
         let (min, max) = a.min_max_or_undefined(&b);
         // Both `min` and `max` are `NaN` if `a` and `b` are incomparable.
         if min.is_nan() {
