@@ -120,12 +120,10 @@ where
     /// let x = R64::try_from_primitive(0.0 / 0.0).unwrap(); // Panics.
     /// ```
     pub fn try_from_primitive(inner: T) -> Result<Self, ConstraintViolation> {
-        P::filter_map(inner)
-            .map(|inner| Proxy {
-                primitive: inner,
-                phantom: PhantomData,
-            })
-            .ok_or(ConstraintViolation)
+        P::filter_map(inner).map(|inner| Proxy {
+            primitive: inner,
+            phantom: PhantomData,
+        })
     }
 
     /// Converts a primitive floating-point value into a proxy expecting no

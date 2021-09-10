@@ -59,7 +59,7 @@ where
     /// Filter-maps a primitive floating-point value based on some constraints.
     ///
     /// Returns `None` for values that cannot satify constraints.
-    fn filter_map(value: T) -> Option<T>;
+    fn filter_map(value: T) -> Result<T, ConstraintViolation>;
 }
 
 #[derive(Debug)]
@@ -76,8 +76,8 @@ impl<T> Constraint<T> for UnitConstraint<T>
 where
     T: Float + Primitive,
 {
-    fn filter_map(value: T) -> Option<T> {
-        Some(value)
+    fn filter_map(value: T) -> Result<T, ConstraintViolation> {
+        Ok(value)
     }
 }
 
@@ -104,12 +104,12 @@ impl<T> Constraint<T> for NotNanConstraint<T>
 where
     T: Float + Primitive,
 {
-    fn filter_map(value: T) -> Option<T> {
+    fn filter_map(value: T) -> Result<T, ConstraintViolation> {
         if value.is_nan() {
-            None
+            Err(ConstraintViolation)
         }
         else {
-            Some(value)
+            Ok(value)
         }
     }
 }
@@ -133,12 +133,12 @@ impl<T> Constraint<T> for FiniteConstraint<T>
 where
     T: Float + Primitive,
 {
-    fn filter_map(value: T) -> Option<T> {
+    fn filter_map(value: T) -> Result<T, ConstraintViolation> {
         if value.is_nan() || value.is_infinite() {
-            None
+            Err(ConstraintViolation)
         }
         else {
-            Some(value)
+            Ok(value)
         }
     }
 }
