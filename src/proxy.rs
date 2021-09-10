@@ -108,6 +108,7 @@ where
     /// }
     ///
     /// let y = f(R64::try_from_primitive(2.0).unwrap());
+    /// // The `TryFrom` and `TryInto` traits can also be used.
     /// let z = f(2.0.try_into().unwrap());
     /// ```
     ///
@@ -229,7 +230,7 @@ where
         Proxy::from_primitive_unchecked(self.into_primitive())
     }
 
-    fn map<F>(self, f: F) -> Self
+    fn expect_map<F>(self, f: F) -> Self
     where
         F: Fn(T) -> T,
     {
@@ -243,7 +244,7 @@ where
         Proxy::from_primitive_unchecked(f(self.into_primitive()))
     }
 
-    fn zip_map<F>(self, other: Self, f: F) -> Self
+    fn expect_zip_map<F>(self, other: Self, f: F) -> Self
     where
         F: Fn(T, T) -> T,
     {
@@ -277,7 +278,7 @@ where
     type Output = Self;
 
     fn add(self, other: Self) -> Self::Output {
-        self.zip_map(other, Add::add)
+        self.expect_zip_map(other, Add::add)
     }
 }
 
@@ -289,7 +290,7 @@ where
     type Output = Self;
 
     fn add(self, other: T) -> Self::Output {
-        self.map(|inner| inner + other)
+        self.expect_map(|inner| inner + other)
     }
 }
 
@@ -309,7 +310,7 @@ where
     P: Constraint<T>,
 {
     fn add_assign(&mut self, other: T) {
-        *self = self.map(|inner| inner + other);
+        *self = self.expect_map(|inner| inner + other);
     }
 }
 
@@ -407,7 +408,7 @@ where
     type Output = Self;
 
     fn div(self, other: Self) -> Self::Output {
-        self.zip_map(other, Div::div)
+        self.expect_zip_map(other, Div::div)
     }
 }
 
@@ -419,7 +420,7 @@ where
     type Output = Self;
 
     fn div(self, other: T) -> Self::Output {
-        self.map(|inner| inner / other)
+        self.expect_map(|inner| inner / other)
     }
 }
 
@@ -439,7 +440,7 @@ where
     P: Constraint<T>,
 {
     fn div_assign(&mut self, other: T) {
-        *self = self.map(|inner| inner / other);
+        *self = self.expect_map(|inner| inner / other);
     }
 }
 
@@ -598,12 +599,12 @@ where
 
     fn min(self, other: Self) -> Self {
         // Avoid panics by propagating `NaN`s for incomparable values.
-        self.zip_map(other, cmp::min_or_undefined)
+        self.expect_zip_map(other, cmp::min_or_undefined)
     }
 
     fn max(self, other: Self) -> Self {
         // Avoid panics by propagating `NaN`s for incomparable values.
-        self.zip_map(other, cmp::max_or_undefined)
+        self.expect_zip_map(other, cmp::max_or_undefined)
     }
 
     fn neg_zero() -> Self {
@@ -619,11 +620,11 @@ where
     }
 
     fn signum(self) -> Self {
-        self.map(|inner| inner.signum())
+        self.expect_map(|inner| inner.signum())
     }
 
     fn abs(self) -> Self {
-        self.map(|inner| inner.abs())
+        self.expect_map(|inner| inner.abs())
     }
 
     fn classify(self) -> FpCategory {
@@ -639,27 +640,27 @@ where
     }
 
     fn floor(self) -> Self {
-        self.map(Real::floor)
+        self.expect_map(Real::floor)
     }
 
     fn ceil(self) -> Self {
-        self.map(Real::ceil)
+        self.expect_map(Real::ceil)
     }
 
     fn round(self) -> Self {
-        self.map(Real::round)
+        self.expect_map(Real::round)
     }
 
     fn trunc(self) -> Self {
-        self.map(Real::trunc)
+        self.expect_map(Real::trunc)
     }
 
     fn fract(self) -> Self {
-        self.map(Real::fract)
+        self.expect_map(Real::fract)
     }
 
     fn recip(self) -> Self {
-        self.map(Real::recip)
+        self.expect_map(Real::recip)
     }
 
     #[cfg(feature = "std")]
@@ -669,7 +670,7 @@ where
 
     #[cfg(feature = "std")]
     fn abs_sub(self, other: Self) -> Self {
-        self.zip_map(other, ForeignFloat::abs_sub)
+        self.expect_zip_map(other, ForeignFloat::abs_sub)
     }
 
     #[cfg(feature = "std")]
@@ -809,12 +810,12 @@ where
 
     #[cfg(not(feature = "std"))]
     fn to_degrees(self) -> Self {
-        self.map(ForeignFloat::to_degrees)
+        self.expect_map(ForeignFloat::to_degrees)
     }
 
     #[cfg(not(feature = "std"))]
     fn to_radians(self) -> Self {
-        self.map(ForeignFloat::to_radians)
+        self.expect_map(ForeignFloat::to_radians)
     }
 }
 
@@ -987,7 +988,7 @@ where
     type Output = Self;
 
     fn mul(self, other: Self) -> Self::Output {
-        self.zip_map(other, Mul::mul)
+        self.expect_zip_map(other, Mul::mul)
     }
 }
 
@@ -999,7 +1000,7 @@ where
     type Output = Self;
 
     fn mul(self, other: T) -> Self::Output {
-        self.map(|a| a * other)
+        self.expect_map(|a| a * other)
     }
 }
 
@@ -1179,27 +1180,27 @@ where
     const LOG10_E: Self = Proxy::from_primitive_unchecked(Real::LOG10_E);
 
     fn floor(self) -> Self {
-        self.map(Real::floor)
+        self.expect_map(Real::floor)
     }
 
     fn ceil(self) -> Self {
-        self.map(Real::ceil)
+        self.expect_map(Real::ceil)
     }
 
     fn round(self) -> Self {
-        self.map(Real::round)
+        self.expect_map(Real::round)
     }
 
     fn trunc(self) -> Self {
-        self.map(Real::trunc)
+        self.expect_map(Real::trunc)
     }
 
     fn fract(self) -> Self {
-        self.map(Real::fract)
+        self.expect_map(Real::fract)
     }
 
     fn recip(self) -> Self {
-        self.map(Real::recip)
+        self.expect_map(Real::recip)
     }
 
     #[cfg(feature = "std")]
@@ -1213,102 +1214,102 @@ where
 
     #[cfg(feature = "std")]
     fn powi(self, n: i32) -> Self {
-        self.map(|inner| Real::powi(inner, n))
+        self.expect_map(|inner| Real::powi(inner, n))
     }
 
     #[cfg(feature = "std")]
     fn powf(self, n: Self) -> Self {
-        self.zip_map(n, Real::powf)
+        self.expect_zip_map(n, Real::powf)
     }
 
     #[cfg(feature = "std")]
     fn sqrt(self) -> Self {
-        self.map(Real::sqrt)
+        self.expect_map(Real::sqrt)
     }
 
     #[cfg(feature = "std")]
     fn cbrt(self) -> Self {
-        self.map(Real::cbrt)
+        self.expect_map(Real::cbrt)
     }
 
     #[cfg(feature = "std")]
     fn exp(self) -> Self {
-        self.map(Real::exp)
+        self.expect_map(Real::exp)
     }
 
     #[cfg(feature = "std")]
     fn exp2(self) -> Self {
-        self.map(Real::exp2)
+        self.expect_map(Real::exp2)
     }
 
     #[cfg(feature = "std")]
     fn exp_m1(self) -> Self {
-        self.map(Real::exp_m1)
+        self.expect_map(Real::exp_m1)
     }
 
     #[cfg(feature = "std")]
     fn log(self, base: Self) -> Self {
-        self.zip_map(base, Real::log)
+        self.expect_zip_map(base, Real::log)
     }
 
     #[cfg(feature = "std")]
     fn ln(self) -> Self {
-        self.map(Real::ln)
+        self.expect_map(Real::ln)
     }
 
     #[cfg(feature = "std")]
     fn log2(self) -> Self {
-        self.map(Real::log2)
+        self.expect_map(Real::log2)
     }
 
     #[cfg(feature = "std")]
     fn log10(self) -> Self {
-        self.map(Real::log10)
+        self.expect_map(Real::log10)
     }
 
     #[cfg(feature = "std")]
     fn ln_1p(self) -> Self {
-        self.map(Real::ln_1p)
+        self.expect_map(Real::ln_1p)
     }
 
     #[cfg(feature = "std")]
     fn hypot(self, other: Self) -> Self {
-        self.zip_map(other, Real::hypot)
+        self.expect_zip_map(other, Real::hypot)
     }
 
     #[cfg(feature = "std")]
     fn sin(self) -> Self {
-        self.map(Real::sin)
+        self.expect_map(Real::sin)
     }
 
     #[cfg(feature = "std")]
     fn cos(self) -> Self {
-        self.map(Real::cos)
+        self.expect_map(Real::cos)
     }
 
     #[cfg(feature = "std")]
     fn tan(self) -> Self {
-        self.map(Real::tan)
+        self.expect_map(Real::tan)
     }
 
     #[cfg(feature = "std")]
     fn asin(self) -> Self {
-        self.map(Real::asin)
+        self.expect_map(Real::asin)
     }
 
     #[cfg(feature = "std")]
     fn acos(self) -> Self {
-        self.map(Real::acos)
+        self.expect_map(Real::acos)
     }
 
     #[cfg(feature = "std")]
     fn atan(self) -> Self {
-        self.map(Real::atan)
+        self.expect_map(Real::atan)
     }
 
     #[cfg(feature = "std")]
     fn atan2(self, other: Self) -> Self {
-        self.zip_map(other, Real::atan2)
+        self.expect_zip_map(other, Real::atan2)
     }
 
     #[cfg(feature = "std")]
@@ -1322,32 +1323,32 @@ where
 
     #[cfg(feature = "std")]
     fn sinh(self) -> Self {
-        self.map(Real::sinh)
+        self.expect_map(Real::sinh)
     }
 
     #[cfg(feature = "std")]
     fn cosh(self) -> Self {
-        self.map(Real::cosh)
+        self.expect_map(Real::cosh)
     }
 
     #[cfg(feature = "std")]
     fn tanh(self) -> Self {
-        self.map(Real::tanh)
+        self.expect_map(Real::tanh)
     }
 
     #[cfg(feature = "std")]
     fn asinh(self) -> Self {
-        self.map(Real::asinh)
+        self.expect_map(Real::asinh)
     }
 
     #[cfg(feature = "std")]
     fn acosh(self) -> Self {
-        self.map(Real::acosh)
+        self.expect_map(Real::acosh)
     }
 
     #[cfg(feature = "std")]
     fn atanh(self) -> Self {
-        self.map(Real::atanh)
+        self.expect_map(Real::atanh)
     }
 }
 
@@ -1383,7 +1384,7 @@ where
     type Output = Self;
 
     fn rem(self, other: Self) -> Self::Output {
-        self.zip_map(other, Rem::rem)
+        self.expect_zip_map(other, Rem::rem)
     }
 }
 
@@ -1395,7 +1396,7 @@ where
     type Output = Self;
 
     fn rem(self, other: T) -> Self::Output {
-        self.map(|inner| inner % other)
+        self.expect_map(|inner| inner % other)
     }
 }
 
@@ -1415,7 +1416,7 @@ where
     P: Constraint<T>,
 {
     fn rem_assign(&mut self, other: T) {
-        *self = self.map(|inner| inner % other);
+        *self = self.expect_map(|inner| inner % other);
     }
 }
 
@@ -1430,12 +1431,12 @@ where
 
     #[cfg(feature = "std")]
     fn abs_sub(&self, other: &Self) -> Self {
-        self.zip_map(*other, |a, b| a.abs_sub(&b))
+        self.expect_zip_map(*other, |a, b| a.abs_sub(&b))
     }
 
     #[cfg(not(feature = "std"))]
     fn abs_sub(&self, other: &Self) -> Self {
-        self.zip_map(*other, |a, b| {
+        self.expect_zip_map(*other, |a, b| {
             if a <= b {
                 Zero::zero()
             }
@@ -1446,7 +1447,7 @@ where
     }
 
     fn signum(&self) -> Self {
-        self.map(|inner| inner.signum())
+        self.expect_map(|inner| inner.signum())
     }
 
     fn is_positive(&self) -> bool {
@@ -1466,7 +1467,7 @@ where
     type Output = Self;
 
     fn sub(self, other: Self) -> Self::Output {
-        self.zip_map(other, Sub::sub)
+        self.expect_zip_map(other, Sub::sub)
     }
 }
 
@@ -1478,7 +1479,7 @@ where
     type Output = Self;
 
     fn sub(self, other: T) -> Self::Output {
-        self.map(|inner| inner - other)
+        self.expect_map(|inner| inner - other)
     }
 }
 
@@ -1498,7 +1499,7 @@ where
     P: Constraint<T>,
 {
     fn sub_assign(&mut self, other: T) {
-        *self = self.map(|inner| inner - other)
+        *self = self.expect_map(|inner| inner - other)
     }
 }
 
@@ -1660,12 +1661,12 @@ macro_rules! impl_foreign_real {
 
             fn min(self, other: Self) -> Self {
                 // Avoid panics by propagating `NaN`s for incomparable values.
-                self.zip_map(other, cmp::min_or_undefined)
+                self.expect_zip_map(other, cmp::min_or_undefined)
             }
 
             fn max(self, other: Self) -> Self {
                 // Avoid panics by propagating `NaN`s for incomparable values.
-                self.zip_map(other, cmp::max_or_undefined)
+                self.expect_zip_map(other, cmp::max_or_undefined)
             }
 
             fn is_sign_positive(self) -> bool {
@@ -1713,7 +1714,7 @@ macro_rules! impl_foreign_real {
             }
 
             fn abs_sub(self, other: Self) -> Self {
-                self.zip_map(other, ForeignFloat::abs_sub)
+                self.expect_zip_map(other, ForeignFloat::abs_sub)
             }
 
             fn powi(self, n: i32) -> Self {
@@ -1761,11 +1762,11 @@ macro_rules! impl_foreign_real {
             }
 
             fn to_degrees(self) -> Self {
-                self.map(ForeignFloat::to_degrees)
+                self.expect_map(ForeignFloat::to_degrees)
             }
 
             fn to_radians(self) -> Self {
-                self.map(ForeignFloat::to_radians)
+                self.expect_map(ForeignFloat::to_radians)
             }
 
             fn ln_1p(self) -> Self {
