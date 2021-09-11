@@ -29,8 +29,8 @@ use crate::hash::FloatHash;
 #[cfg(feature = "std")]
 use crate::ForeignReal;
 use crate::{
-    Encoding, Finite, Float, ForeignFloat, Infinite, Nan, NotNan, Primitive, PrimitiveExt as _,
-    Real, ToCanonicalBits, Total,
+    Encoding, Finite, Float, ForeignFloat, Infinite, Nan, NotNan, Primitive, Real, ToCanonicalBits,
+    Total,
 };
 
 /// Floating-point proxy that provides a total ordering, equivalence, hashing,
@@ -74,7 +74,7 @@ pub struct Proxy<T, P> {
 }
 
 impl<T, P> Proxy<T, P> {
-    const fn from_inner_unchecked(inner: T) -> Self {
+    const fn new_unchecked(inner: T) -> Self {
         Proxy {
             inner,
             phantom: PhantomData,
@@ -87,17 +87,20 @@ where
     T: Float + Primitive,
     P: Constraint<T>,
 {
-    /// Fallibly converts a primitive floating-point value into a proxy.
+    /// Creates a proxy from a primitive floating-point value.
+    ///
+    /// This construction is also provided via `TryFrom`, but `new` must be used
+    /// in generic contexts where the inner primitive type is unknown.
     ///
     /// # Errors
     ///
-    /// This conversion and fallible implementations of the `TryFrom` trait
-    /// return a `ConstraintViolation` if the primitive floating-point value
-    /// violates the constraints of the proxy.
+    /// This construction and implementations of `TryFrom` return a
+    /// `ConstraintViolation` if the primitive floating-point value violates the
+    /// constraints of the proxy.
     ///
     /// # Examples
     ///
-    /// Converting primitive floating-point values into proxies:
+    /// Creating proxies from primitive floating-point values:
     ///
     /// ```rust
     /// use core::convert::TryInto;
@@ -107,37 +110,37 @@ where
     ///     x * 2.0
     /// }
     ///
-    /// let y = f(R64::try_from_inner(2.0).unwrap());
-    /// // The `TryFrom` and `TryInto` traits can also be used.
+    /// let y = f(R64::new(2.0).unwrap());
+    /// // The `TryFrom` and `TryInto` traits can also be used in some contexts.
     /// let z = f(2.0.try_into().unwrap());
     /// ```
     ///
-    /// Performing a conversion that fails:
+    /// Creating a proxy with a failure:
     ///
     /// ```rust,should_panic
     /// use decorum::R64;
     ///
     /// // `R64` does not allow `NaN`s, but `0.0 / 0.0` produces a `NaN`.
-    /// let x = R64::try_from_inner(0.0 / 0.0).unwrap(); // Panics.
+    /// let x = R64::new(0.0 / 0.0).unwrap(); // Panics.
     /// ```
-    pub fn try_from_inner(inner: T) -> Result<Self, ConstraintViolation> {
+    pub fn new(inner: T) -> Result<Self, ConstraintViolation> {
         P::filter_map(inner).map(|inner| Proxy {
             inner,
             phantom: PhantomData,
         })
     }
 
-    /// Converts a primitive floating-point value into a proxy expecting no
-    /// errors.
+    /// Creates a proxy from a primitive floating-point value and asserts
+    /// success.
     ///
     /// # Panics
     ///
-    /// This conversion panics if the primitive floating-point value violates
+    /// This construction panics if the primitive floating-point value violates
     /// the constraints of the proxy.
     ///
     /// # Examples
     ///
-    /// Converting primitive floating-point values into proxies:
+    /// Creating proxies from primitive floating-point values:
     ///
     /// ```rust
     /// use decorum::R64;
@@ -146,19 +149,19 @@ where
     ///     x * 2.0
     /// }
     ///
-    /// let y = f(R64::expect_from_inner(2.0));
+    /// let y = f(R64::assert(2.0));
     /// ```
     ///
-    /// Performing a conversion that panics:
+    /// Creating a proxy with a failure:
     ///
     /// ```rust,should_panic
     /// use decorum::R64;
     ///
     /// // `R64` does not allow `NaN`s, but `0.0 / 0.0` produces a `NaN`.
-    /// let x = R64::expect_from_inner(0.0 / 0.0); // Panics.
+    /// let x = R64::assert(0.0 / 0.0); // Panics.
     /// ```
-    pub fn expect_from_inner(inner: T) -> Self {
-        Self::try_from_inner(inner).expect_constrained()
+    pub fn assert(inner: T) -> Self {
+        Self::new(inner).expect_constrained()
     }
 
     /// Converts a proxy into a primitive floating-point value.
@@ -204,7 +207,7 @@ where
     where
         Q: Constraint<T> + SubsetOf<P>,
     {
-        Self::from_inner_unchecked(other.into_inner())
+        Self::new_unchecked(other.into_inner())
     }
 
     /// Converts a proxy into another proxy that is capable of representing a
@@ -227,28 +230,28 @@ where
     where
         Q: Constraint<T> + SupersetOf<P>,
     {
-        Proxy::from_inner_unchecked(self.into_inner())
+        Proxy::new_unchecked(self.into_inner())
     }
 
-    fn expect_map<F>(self, f: F) -> Self
+    fn map_assert<F>(self, f: F) -> Self
     where
         F: Fn(T) -> T,
     {
-        Proxy::expect_from_inner(f(self.into_inner()))
+        Proxy::assert(f(self.into_inner()))
     }
 
     fn map_unchecked<F>(self, f: F) -> Self
     where
         F: Fn(T) -> T,
     {
-        Proxy::from_inner_unchecked(f(self.into_inner()))
+        Proxy::new_unchecked(f(self.into_inner()))
     }
 
-    fn expect_zip_map<F>(self, other: Self, f: F) -> Self
+    fn zip_map_assert<F>(self, other: Self, f: F) -> Self
     where
         F: Fn(T, T) -> T,
     {
-        Proxy::expect_from_inner(f(self.into_inner(), other.into_inner()))
+        Proxy::assert(f(self.into_inner(), other.into_inner()))
     }
 }
 
@@ -261,7 +264,7 @@ where
     type Epsilon = Self;
 
     fn default_epsilon() -> Self::Epsilon {
-        T::default_epsilon().expect_into_proxy()
+        Self::assert(T::default_epsilon())
     }
 
     fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
@@ -278,7 +281,7 @@ where
     type Output = Self;
 
     fn add(self, other: Self) -> Self::Output {
-        self.expect_zip_map(other, Add::add)
+        self.zip_map_assert(other, Add::add)
     }
 }
 
@@ -290,7 +293,7 @@ where
     type Output = Self;
 
     fn add(self, other: T) -> Self::Output {
-        self.expect_map(|inner| inner + other)
+        self.map_assert(|inner| inner + other)
     }
 }
 
@@ -310,7 +313,7 @@ where
     P: Constraint<T>,
 {
     fn add_assign(&mut self, other: T) {
-        *self = self.expect_map(|inner| inner + other);
+        *self = self.map_assert(|inner| inner + other);
     }
 }
 
@@ -385,8 +388,8 @@ where
     P: Constraint<T>,
 {
     fn default() -> Self {
-        // TODO: This can probably use `from_inner_unchecked`.
-        T::default().expect_into_proxy()
+        // TODO: This can probably use `new_unchecked`.
+        Self::assert(T::default())
     }
 }
 
@@ -408,7 +411,7 @@ where
     type Output = Self;
 
     fn div(self, other: Self) -> Self::Output {
-        self.expect_zip_map(other, Div::div)
+        self.zip_map_assert(other, Div::div)
     }
 }
 
@@ -420,7 +423,7 @@ where
     type Output = Self;
 
     fn div(self, other: T) -> Self::Output {
-        self.expect_map(|inner| inner / other)
+        self.map_assert(|inner| inner / other)
     }
 }
 
@@ -440,7 +443,7 @@ where
     P: Constraint<T>,
 {
     fn div_assign(&mut self, other: T) {
-        *self = self.expect_map(|inner| inner / other);
+        *self = self.map_assert(|inner| inner / other);
     }
 }
 
@@ -449,10 +452,10 @@ where
     T: Float + Primitive,
     P: Constraint<T>,
 {
-    const MAX_FINITE: Self = Proxy::from_inner_unchecked(T::MAX_FINITE);
-    const MIN_FINITE: Self = Proxy::from_inner_unchecked(T::MIN_FINITE);
-    const MIN_POSITIVE_NORMAL: Self = Proxy::from_inner_unchecked(T::MIN_POSITIVE_NORMAL);
-    const EPSILON: Self = Proxy::from_inner_unchecked(T::EPSILON);
+    const MAX_FINITE: Self = Proxy::new_unchecked(T::MAX_FINITE);
+    const MIN_FINITE: Self = Proxy::new_unchecked(T::MIN_FINITE);
+    const MIN_POSITIVE_NORMAL: Self = Proxy::new_unchecked(T::MIN_POSITIVE_NORMAL);
+    const EPSILON: Self = Proxy::new_unchecked(T::EPSILON);
 
     fn classify(self) -> FpCategory {
         T::classify(self.into_inner())
@@ -599,16 +602,16 @@ where
 
     fn min(self, other: Self) -> Self {
         // Avoid panics by propagating `NaN`s for incomparable values.
-        self.expect_zip_map(other, cmp::min_or_undefined)
+        self.zip_map_assert(other, cmp::min_or_undefined)
     }
 
     fn max(self, other: Self) -> Self {
         // Avoid panics by propagating `NaN`s for incomparable values.
-        self.expect_zip_map(other, cmp::max_or_undefined)
+        self.zip_map_assert(other, cmp::max_or_undefined)
     }
 
     fn neg_zero() -> Self {
-        Self::expect_from_inner(T::neg_zero())
+        Self::assert(T::neg_zero())
     }
 
     fn is_sign_positive(self) -> bool {
@@ -620,11 +623,11 @@ where
     }
 
     fn signum(self) -> Self {
-        self.expect_map(|inner| inner.signum())
+        self.map_assert(|inner| inner.signum())
     }
 
     fn abs(self) -> Self {
-        self.expect_map(|inner| inner.abs())
+        self.map_assert(|inner| inner.abs())
     }
 
     fn classify(self) -> FpCategory {
@@ -640,27 +643,27 @@ where
     }
 
     fn floor(self) -> Self {
-        self.expect_map(Real::floor)
+        self.map_assert(Real::floor)
     }
 
     fn ceil(self) -> Self {
-        self.expect_map(Real::ceil)
+        self.map_assert(Real::ceil)
     }
 
     fn round(self) -> Self {
-        self.expect_map(Real::round)
+        self.map_assert(Real::round)
     }
 
     fn trunc(self) -> Self {
-        self.expect_map(Real::trunc)
+        self.map_assert(Real::trunc)
     }
 
     fn fract(self) -> Self {
-        self.expect_map(Real::fract)
+        self.map_assert(Real::fract)
     }
 
     fn recip(self) -> Self {
-        self.expect_map(Real::recip)
+        self.map_assert(Real::recip)
     }
 
     #[cfg(feature = "std")]
@@ -670,7 +673,7 @@ where
 
     #[cfg(feature = "std")]
     fn abs_sub(self, other: Self) -> Self {
-        self.expect_zip_map(other, ForeignFloat::abs_sub)
+        self.zip_map_assert(other, ForeignFloat::abs_sub)
     }
 
     #[cfg(feature = "std")]
@@ -810,12 +813,12 @@ where
 
     #[cfg(not(feature = "std"))]
     fn to_degrees(self) -> Self {
-        self.expect_map(ForeignFloat::to_degrees)
+        self.map_assert(ForeignFloat::to_degrees)
     }
 
     #[cfg(not(feature = "std"))]
     fn to_radians(self) -> Self {
-        self.expect_map(ForeignFloat::to_radians)
+        self.map_assert(ForeignFloat::to_radians)
     }
 }
 
@@ -869,62 +872,61 @@ where
     T: Float + Primitive,
 {
     fn from(inner: T) -> Self {
-        Self::from_inner_unchecked(inner)
+        Self::new_unchecked(inner)
     }
 }
 
-// TODO: Should constraint violations panic here?
 impl<T, P> FromPrimitive for Proxy<T, P>
 where
     T: Float + FromPrimitive + Primitive,
     P: Constraint<T>,
 {
     fn from_i8(value: i8) -> Option<Self> {
-        T::from_i8(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_i8(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_u8(value: u8) -> Option<Self> {
-        T::from_u8(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_u8(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_i16(value: i16) -> Option<Self> {
-        T::from_i16(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_i16(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_u16(value: u16) -> Option<Self> {
-        T::from_u16(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_u16(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_i32(value: i32) -> Option<Self> {
-        T::from_i32(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_i32(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_u32(value: u32) -> Option<Self> {
-        T::from_u32(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_u32(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_i64(value: i64) -> Option<Self> {
-        T::from_i64(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_i64(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_u64(value: u64) -> Option<Self> {
-        T::from_u64(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_u64(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_isize(value: isize) -> Option<Self> {
-        T::from_isize(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_isize(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_usize(value: usize) -> Option<Self> {
-        T::from_usize(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_usize(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_f32(value: f32) -> Option<Self> {
-        T::from_f32(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_f32(value).and_then(|inner| Proxy::new(inner).ok())
     }
 
     fn from_f64(value: f64) -> Option<Self> {
-        T::from_f64(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from_f64(value).and_then(|inner| Proxy::new(inner).ok())
     }
 }
 
@@ -936,7 +938,7 @@ where
     type Err = <T as FromStr>::Err;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        T::from_str(string).map(Self::expect_from_inner)
+        T::from_str(string).map(Self::assert)
     }
 }
 
@@ -958,8 +960,8 @@ where
     T: Float + Primitive,
     P: Constraint<T> + Member<InfiniteSet>,
 {
-    const INFINITY: Self = Proxy::from_inner_unchecked(T::INFINITY);
-    const NEG_INFINITY: Self = Proxy::from_inner_unchecked(T::NEG_INFINITY);
+    const INFINITY: Self = Proxy::new_unchecked(T::INFINITY);
+    const NEG_INFINITY: Self = Proxy::new_unchecked(T::NEG_INFINITY);
 
     fn is_infinite(self) -> bool {
         self.into_inner().is_infinite()
@@ -988,7 +990,7 @@ where
     type Output = Self;
 
     fn mul(self, other: Self) -> Self::Output {
-        self.expect_zip_map(other, Mul::mul)
+        self.zip_map_assert(other, Mul::mul)
     }
 }
 
@@ -1000,7 +1002,7 @@ where
     type Output = Self;
 
     fn mul(self, other: T) -> Self::Output {
-        self.expect_map(|a| a * other)
+        self.map_assert(|a| a * other)
     }
 }
 
@@ -1029,7 +1031,7 @@ where
     T: Float + Primitive,
     P: Constraint<T> + Member<NanSet>,
 {
-    const NAN: Self = Proxy::from_inner_unchecked(T::NAN);
+    const NAN: Self = Proxy::new_unchecked(T::NAN);
 
     fn is_nan(self) -> bool {
         self.into_inner().is_nan()
@@ -1044,7 +1046,7 @@ where
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        Proxy::from_inner_unchecked(-self.into_inner())
+        Proxy::new_unchecked(-self.into_inner())
     }
 }
 
@@ -1060,7 +1062,7 @@ where
     fn from_str_radix(source: &str, radix: u32) -> Result<Self, Self::FromStrRadixErr> {
         T::from_str_radix(source, radix)
             .map_err(|_| ())
-            .and_then(|inner| Proxy::try_from_inner(inner).map_err(|_| ()))
+            .and_then(|inner| Proxy::new(inner).map_err(|_| ()))
     }
 }
 
@@ -1073,7 +1075,7 @@ where
     where
         U: ToPrimitive,
     {
-        T::from(value).and_then(|inner| Proxy::try_from_inner(inner).ok())
+        T::from(value).and_then(|inner| Proxy::new(inner).ok())
     }
 }
 
@@ -1083,7 +1085,7 @@ where
     P: Constraint<T>,
 {
     fn one() -> Self {
-        Proxy::from_inner_unchecked(T::one())
+        Proxy::new_unchecked(T::one())
     }
 }
 
@@ -1113,7 +1115,7 @@ where
     P: Constraint<T>,
 {
     fn eq(&self, other: &T) -> bool {
-        if let Ok(other) = Self::try_from_inner(*other) {
+        if let Ok(other) = Self::new(*other) {
             Self::eq(self, &other)
         }
         else {
@@ -1138,7 +1140,7 @@ where
     P: Constraint<T>,
 {
     fn partial_cmp(&self, other: &T) -> Option<Ordering> {
-        Self::try_from_inner(*other)
+        Self::new(*other)
             .ok()
             .and_then(|other| Self::partial_cmp(self, &other))
     }
@@ -1162,50 +1164,50 @@ where
     T: Float + Primitive,
     P: Constraint<T>,
 {
-    const E: Self = Proxy::from_inner_unchecked(Real::E);
-    const PI: Self = Proxy::from_inner_unchecked(Real::PI);
-    const FRAC_1_PI: Self = Proxy::from_inner_unchecked(Real::FRAC_1_PI);
-    const FRAC_2_PI: Self = Proxy::from_inner_unchecked(Real::FRAC_2_PI);
-    const FRAC_2_SQRT_PI: Self = Proxy::from_inner_unchecked(Real::FRAC_2_SQRT_PI);
-    const FRAC_PI_2: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_2);
-    const FRAC_PI_3: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_3);
-    const FRAC_PI_4: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_4);
-    const FRAC_PI_6: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_6);
-    const FRAC_PI_8: Self = Proxy::from_inner_unchecked(Real::FRAC_PI_8);
-    const SQRT_2: Self = Proxy::from_inner_unchecked(Real::SQRT_2);
-    const FRAC_1_SQRT_2: Self = Proxy::from_inner_unchecked(Real::FRAC_1_SQRT_2);
-    const LN_2: Self = Proxy::from_inner_unchecked(Real::LN_2);
-    const LN_10: Self = Proxy::from_inner_unchecked(Real::LN_10);
-    const LOG2_E: Self = Proxy::from_inner_unchecked(Real::LOG2_E);
-    const LOG10_E: Self = Proxy::from_inner_unchecked(Real::LOG10_E);
+    const E: Self = Proxy::new_unchecked(Real::E);
+    const PI: Self = Proxy::new_unchecked(Real::PI);
+    const FRAC_1_PI: Self = Proxy::new_unchecked(Real::FRAC_1_PI);
+    const FRAC_2_PI: Self = Proxy::new_unchecked(Real::FRAC_2_PI);
+    const FRAC_2_SQRT_PI: Self = Proxy::new_unchecked(Real::FRAC_2_SQRT_PI);
+    const FRAC_PI_2: Self = Proxy::new_unchecked(Real::FRAC_PI_2);
+    const FRAC_PI_3: Self = Proxy::new_unchecked(Real::FRAC_PI_3);
+    const FRAC_PI_4: Self = Proxy::new_unchecked(Real::FRAC_PI_4);
+    const FRAC_PI_6: Self = Proxy::new_unchecked(Real::FRAC_PI_6);
+    const FRAC_PI_8: Self = Proxy::new_unchecked(Real::FRAC_PI_8);
+    const SQRT_2: Self = Proxy::new_unchecked(Real::SQRT_2);
+    const FRAC_1_SQRT_2: Self = Proxy::new_unchecked(Real::FRAC_1_SQRT_2);
+    const LN_2: Self = Proxy::new_unchecked(Real::LN_2);
+    const LN_10: Self = Proxy::new_unchecked(Real::LN_10);
+    const LOG2_E: Self = Proxy::new_unchecked(Real::LOG2_E);
+    const LOG10_E: Self = Proxy::new_unchecked(Real::LOG10_E);
 
     fn floor(self) -> Self {
-        self.expect_map(Real::floor)
+        self.map_assert(Real::floor)
     }
 
     fn ceil(self) -> Self {
-        self.expect_map(Real::ceil)
+        self.map_assert(Real::ceil)
     }
 
     fn round(self) -> Self {
-        self.expect_map(Real::round)
+        self.map_assert(Real::round)
     }
 
     fn trunc(self) -> Self {
-        self.expect_map(Real::trunc)
+        self.map_assert(Real::trunc)
     }
 
     fn fract(self) -> Self {
-        self.expect_map(Real::fract)
+        self.map_assert(Real::fract)
     }
 
     fn recip(self) -> Self {
-        self.expect_map(Real::recip)
+        self.map_assert(Real::recip)
     }
 
     #[cfg(feature = "std")]
     fn mul_add(self, a: Self, b: Self) -> Self {
-        Proxy::expect_from_inner(<T as Real>::mul_add(
+        Proxy::assert(<T as Real>::mul_add(
             self.into_inner(),
             a.into_inner(),
             b.into_inner(),
@@ -1214,141 +1216,138 @@ where
 
     #[cfg(feature = "std")]
     fn powi(self, n: i32) -> Self {
-        self.expect_map(|inner| Real::powi(inner, n))
+        self.map_assert(|inner| Real::powi(inner, n))
     }
 
     #[cfg(feature = "std")]
     fn powf(self, n: Self) -> Self {
-        self.expect_zip_map(n, Real::powf)
+        self.zip_map_assert(n, Real::powf)
     }
 
     #[cfg(feature = "std")]
     fn sqrt(self) -> Self {
-        self.expect_map(Real::sqrt)
+        self.map_assert(Real::sqrt)
     }
 
     #[cfg(feature = "std")]
     fn cbrt(self) -> Self {
-        self.expect_map(Real::cbrt)
+        self.map_assert(Real::cbrt)
     }
 
     #[cfg(feature = "std")]
     fn exp(self) -> Self {
-        self.expect_map(Real::exp)
+        self.map_assert(Real::exp)
     }
 
     #[cfg(feature = "std")]
     fn exp2(self) -> Self {
-        self.expect_map(Real::exp2)
+        self.map_assert(Real::exp2)
     }
 
     #[cfg(feature = "std")]
     fn exp_m1(self) -> Self {
-        self.expect_map(Real::exp_m1)
+        self.map_assert(Real::exp_m1)
     }
 
     #[cfg(feature = "std")]
     fn log(self, base: Self) -> Self {
-        self.expect_zip_map(base, Real::log)
+        self.zip_map_assert(base, Real::log)
     }
 
     #[cfg(feature = "std")]
     fn ln(self) -> Self {
-        self.expect_map(Real::ln)
+        self.map_assert(Real::ln)
     }
 
     #[cfg(feature = "std")]
     fn log2(self) -> Self {
-        self.expect_map(Real::log2)
+        self.map_assert(Real::log2)
     }
 
     #[cfg(feature = "std")]
     fn log10(self) -> Self {
-        self.expect_map(Real::log10)
+        self.map_assert(Real::log10)
     }
 
     #[cfg(feature = "std")]
     fn ln_1p(self) -> Self {
-        self.expect_map(Real::ln_1p)
+        self.map_assert(Real::ln_1p)
     }
 
     #[cfg(feature = "std")]
     fn hypot(self, other: Self) -> Self {
-        self.expect_zip_map(other, Real::hypot)
+        self.zip_map_assert(other, Real::hypot)
     }
 
     #[cfg(feature = "std")]
     fn sin(self) -> Self {
-        self.expect_map(Real::sin)
+        self.map_assert(Real::sin)
     }
 
     #[cfg(feature = "std")]
     fn cos(self) -> Self {
-        self.expect_map(Real::cos)
+        self.map_assert(Real::cos)
     }
 
     #[cfg(feature = "std")]
     fn tan(self) -> Self {
-        self.expect_map(Real::tan)
+        self.map_assert(Real::tan)
     }
 
     #[cfg(feature = "std")]
     fn asin(self) -> Self {
-        self.expect_map(Real::asin)
+        self.map_assert(Real::asin)
     }
 
     #[cfg(feature = "std")]
     fn acos(self) -> Self {
-        self.expect_map(Real::acos)
+        self.map_assert(Real::acos)
     }
 
     #[cfg(feature = "std")]
     fn atan(self) -> Self {
-        self.expect_map(Real::atan)
+        self.map_assert(Real::atan)
     }
 
     #[cfg(feature = "std")]
     fn atan2(self, other: Self) -> Self {
-        self.expect_zip_map(other, Real::atan2)
+        self.zip_map_assert(other, Real::atan2)
     }
 
     #[cfg(feature = "std")]
     fn sin_cos(self) -> (Self, Self) {
         let (sin, cos) = self.into_inner().sin_cos();
-        (
-            Proxy::from_inner_unchecked(sin),
-            Proxy::from_inner_unchecked(cos),
-        )
+        (Proxy::new_unchecked(sin), Proxy::new_unchecked(cos))
     }
 
     #[cfg(feature = "std")]
     fn sinh(self) -> Self {
-        self.expect_map(Real::sinh)
+        self.map_assert(Real::sinh)
     }
 
     #[cfg(feature = "std")]
     fn cosh(self) -> Self {
-        self.expect_map(Real::cosh)
+        self.map_assert(Real::cosh)
     }
 
     #[cfg(feature = "std")]
     fn tanh(self) -> Self {
-        self.expect_map(Real::tanh)
+        self.map_assert(Real::tanh)
     }
 
     #[cfg(feature = "std")]
     fn asinh(self) -> Self {
-        self.expect_map(Real::asinh)
+        self.map_assert(Real::asinh)
     }
 
     #[cfg(feature = "std")]
     fn acosh(self) -> Self {
-        self.expect_map(Real::acosh)
+        self.map_assert(Real::acosh)
     }
 
     #[cfg(feature = "std")]
     fn atanh(self) -> Self {
-        self.expect_map(Real::atanh)
+        self.map_assert(Real::atanh)
     }
 }
 
@@ -1359,7 +1358,7 @@ where
     P: Constraint<T>,
 {
     fn default_max_relative() -> Self::Epsilon {
-        T::default_max_relative().expect_into_proxy()
+        Self::assert(T::default_max_relative())
     }
 
     fn relative_eq(
@@ -1384,7 +1383,7 @@ where
     type Output = Self;
 
     fn rem(self, other: Self) -> Self::Output {
-        self.expect_zip_map(other, Rem::rem)
+        self.zip_map_assert(other, Rem::rem)
     }
 }
 
@@ -1396,7 +1395,7 @@ where
     type Output = Self;
 
     fn rem(self, other: T) -> Self::Output {
-        self.expect_map(|inner| inner % other)
+        self.map_assert(|inner| inner % other)
     }
 }
 
@@ -1416,7 +1415,7 @@ where
     P: Constraint<T>,
 {
     fn rem_assign(&mut self, other: T) {
-        *self = self.expect_map(|inner| inner % other);
+        *self = self.map_assert(|inner| inner % other);
     }
 }
 
@@ -1431,12 +1430,12 @@ where
 
     #[cfg(feature = "std")]
     fn abs_sub(&self, other: &Self) -> Self {
-        self.expect_zip_map(*other, |a, b| a.abs_sub(&b))
+        self.zip_map_assert(*other, |a, b| a.abs_sub(&b))
     }
 
     #[cfg(not(feature = "std"))]
     fn abs_sub(&self, other: &Self) -> Self {
-        self.expect_zip_map(*other, |a, b| {
+        self.zip_map_assert(*other, |a, b| {
             if a <= b {
                 Zero::zero()
             }
@@ -1447,7 +1446,7 @@ where
     }
 
     fn signum(&self) -> Self {
-        self.expect_map(|inner| inner.signum())
+        self.map_assert(|inner| inner.signum())
     }
 
     fn is_positive(&self) -> bool {
@@ -1467,7 +1466,7 @@ where
     type Output = Self;
 
     fn sub(self, other: Self) -> Self::Output {
-        self.expect_zip_map(other, Sub::sub)
+        self.zip_map_assert(other, Sub::sub)
     }
 }
 
@@ -1479,7 +1478,7 @@ where
     type Output = Self;
 
     fn sub(self, other: T) -> Self::Output {
-        self.expect_map(|inner| inner - other)
+        self.map_assert(|inner| inner - other)
     }
 }
 
@@ -1499,7 +1498,7 @@ where
     P: Constraint<T>,
 {
     fn sub_assign(&mut self, other: T) {
-        *self = self.expect_map(|inner| inner - other)
+        *self = self.map_assert(|inner| inner - other)
     }
 }
 
@@ -1614,7 +1613,7 @@ where
     P: Constraint<T>,
 {
     fn zero() -> Self {
-        Proxy::from_inner_unchecked(T::zero())
+        Proxy::new_unchecked(T::zero())
     }
 
     fn is_zero(&self) -> bool {
@@ -1661,12 +1660,12 @@ macro_rules! impl_foreign_real {
 
             fn min(self, other: Self) -> Self {
                 // Avoid panics by propagating `NaN`s for incomparable values.
-                self.expect_zip_map(other, cmp::min_or_undefined)
+                self.zip_map_assert(other, cmp::min_or_undefined)
             }
 
             fn max(self, other: Self) -> Self {
                 // Avoid panics by propagating `NaN`s for incomparable values.
-                self.expect_zip_map(other, cmp::max_or_undefined)
+                self.zip_map_assert(other, cmp::max_or_undefined)
             }
 
             fn is_sign_positive(self) -> bool {
@@ -1714,7 +1713,7 @@ macro_rules! impl_foreign_real {
             }
 
             fn abs_sub(self, other: Self) -> Self {
-                self.expect_zip_map(other, ForeignFloat::abs_sub)
+                self.zip_map_assert(other, ForeignFloat::abs_sub)
             }
 
             fn powi(self, n: i32) -> Self {
@@ -1762,11 +1761,11 @@ macro_rules! impl_foreign_real {
             }
 
             fn to_degrees(self) -> Self {
-                self.expect_map(ForeignFloat::to_degrees)
+                self.map_assert(ForeignFloat::to_degrees)
             }
 
             fn to_radians(self) -> Self {
-                self.expect_map(ForeignFloat::to_radians)
+                self.map_assert(ForeignFloat::to_radians)
             }
 
             fn ln_1p(self) -> Self {
@@ -1848,7 +1847,7 @@ macro_rules! impl_try_from {
             type Error = ConstraintViolation;
 
             fn try_from(inner: $t) -> Result<Self, Self::Error> {
-                Self::try_from_inner(inner)
+                Self::new(inner)
             }
         }
     };
@@ -1957,7 +1956,7 @@ mod tests {
             2.0.try_into().unwrap(),
             3.0.try_into().unwrap(),
         ];
-        assert_eq!(xs.iter().cloned().sum::<R32>(), R32::expect_from_inner(6.0));
+        assert_eq!(xs.iter().cloned().sum::<R32>(), R32::assert(6.0));
     }
 
     #[test]
@@ -1967,10 +1966,7 @@ mod tests {
             2.0.try_into().unwrap(),
             3.0.try_into().unwrap(),
         ];
-        assert_eq!(
-            xs.iter().cloned().product::<R32>(),
-            R32::expect_from_inner(6.0),
-        );
+        assert_eq!(xs.iter().cloned().product::<R32>(), R32::assert(6.0),);
     }
 
     // TODO: This test is questionable.

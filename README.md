@@ -98,25 +98,39 @@ are somewhat different and are not always interchangeable. Traits from both
 crates are implemented by Decorum where possible. For example, `Total`
 implements `Float` from both Decorum and [`num-traits`].
 
-## Conversions
+## Construction and Conversions
 
-Proxy types are used via conversions to and from primitive floating-point
-types and other proxy types.
+Proxy types are used via constructors and conversions from and into primitive
+floating-point types and other proxy types.
 
-| Conversion          | Input     | Output    | Violation |
-|---------------------|-----------|-----------|-----------|
-| `try_from_inner`    | primitive | proxy     | error     |
-| `expect_from_inner` | primitive | proxy     | panic     |
-| `into_inner`        | proxy     | primitive | n/a       |
-| `from_subset`       | proxy     | proxy     | n/a       |
-| `into_superset`     | proxy     | proxy     | n/a       |
+| Method          | Input     | Output    | Violation |
+|-----------------|-----------|-----------|-----------|
+| `new`           | primitive | proxy     | error     |
+| `assert`        | primitive | proxy     | panic     |
+| `into_inner`    | proxy     | primitive | n/a       |
+| `from_subset`   | proxy     | proxy     | n/a       |
+| `into_superset` | proxy     | proxy     | n/a       |
 
-The `try_from_inner` and `into_inner` conversions move primitive floating-point
-values into and out of proxies. The `into_superset` and `from_subset`
-conversions provide an inexpensive way to convert between proxy types with
-different but compatible constraints. All conversions also support the standard
-`From`/`Into` and `TryFrom`/`TryInto` traits, which can also be applied to
-literals and should be preferred:
+The `new` constructor and `into_inner` conversion move primitive floating-point
+values into and out of proxies. The `assert` constructor panics if the given
+primitive floating-point value violates the proxy's constraints. The
+`into_superset` and `from_subset` conversions provide an inexpensive way to
+convert between proxy types with different but compatible constraints.
+
+```rust
+use decorum::R32;
+
+fn f(x: R64) -> R64 {
+    x * 3.0
+}
+
+let y = R32::assert(3.1459);
+let z = f(R32::new(2.7182).unwrap());
+let w = z.into_inner();
+```
+
+All conversions also support the standard `From`/`Into` and `TryFrom`/`TryInto`
+traits, which can also be applied to literals.
 
 ```rust
 use core::convert::{TryFrom, TryInto};
@@ -125,6 +139,7 @@ use decorum::R32;
 fn f(x: R32) -> R32 {
     x * 2.0
 }
+
 let y: R32 = 3.1459.try_into().unwrap();
 let z = f(R32::try_from(2.7182).unwrap());
 let w: f32 = z.into();
@@ -143,7 +158,7 @@ floating-point values for ordering, equivalence, and hashing instead.
 | `FloatOrd`           | `Ord`            |
 
 These traits use the same total ordering and equivalence rules that proxy types
-do. They are implemented for base types as well as slices:
+do. They are implemented for base types as well as slices.
 
 ```rust
 use decorum::cmp::FloatEq;

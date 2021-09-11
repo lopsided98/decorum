@@ -636,6 +636,6 @@ where
         Self: Float,
         P: Constraint<Self>,
     {
-        Proxy::expect_from_inner(self)
+        Proxy::assert(self)
     }
 }
