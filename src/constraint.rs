@@ -13,14 +13,11 @@ use crate::{Float, Primitive};
 #[derive(Clone, Copy, Debug)]
 pub struct ConstraintViolation;
 
-pub trait ResultExt<T, E>: Sized {
+pub trait ExpectConstrained<T>: Sized {
     fn expect_constrained(self) -> T;
 }
 
-impl<T, E> ResultExt<T, E> for Result<T, E>
-where
-    E: Debug,
-{
+impl<T> ExpectConstrained<T> for Result<T, ConstraintViolation> {
     #[cfg(not(feature = "std"))]
     fn expect_constrained(self) -> T {
         self.expect("floating-point constraint violated")

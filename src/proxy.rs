@@ -22,7 +22,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::cmp::{self, FloatEq, FloatOrd, IntrinsicOrd};
 use crate::constraint::{
-    Constraint, ConstraintViolation, InfiniteSet, Member, NanSet, ResultExt as _, SubsetOf,
+    Constraint, ConstraintViolation, ExpectConstrained, InfiniteSet, Member, NanSet, SubsetOf,
     SupersetOf,
 };
 use crate::hash::FloatHash;
