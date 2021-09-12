@@ -66,7 +66,7 @@ use core::cmp::Ordering;
 
 use crate::constraint::Constraint;
 use crate::proxy::Proxy;
-use crate::{Float, Nan, Primitive, PrimitiveExt as _, ToCanonicalBits};
+use crate::{Float, Nan, Primitive, ToCanonicalBits};
 
 /// Equivalence relation for floating-point primitives.
 ///
@@ -283,11 +283,11 @@ where
         let (min, max) = a.min_max_or_undefined(&b);
         // Both `min` and `max` are `NaN` if `a` and `b` are incomparable.
         if min.is_nan() {
-            let nan = T::NAN.expect_into_proxy();
+            let nan = Proxy::assert(T::NAN);
             (nan, nan)
         }
         else {
-            (min.expect_into_proxy(), max.expect_into_proxy())
+            (Proxy::assert(min), Proxy::assert(max))
         }
     }
 }
