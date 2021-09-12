@@ -61,7 +61,7 @@ where
 
     /// Filter-maps a primitive floating-point value based on some constraints.
     ///
-    /// Returns `None` for values that cannot satify constraints.
+    /// Returns `Err` for values that cannot satify constraints.
     fn filter_map(inner: T) -> Result<T, Self::Error>;
 }
 
