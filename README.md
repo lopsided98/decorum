@@ -101,7 +101,9 @@ implements `Float` from both Decorum and [`num-traits`].
 ## Construction and Conversions
 
 Proxy types are used via constructors and conversions from and into primitive
-floating-point types and other compatible proxy types.
+floating-point types and other compatible proxy types. Unlike numeric
+operations, these functions do not necessarily panic if a constraint is
+violated.
 
 | Method          | Input     | Output    | Violation |
 |-----------------|-----------|-----------|-----------|
@@ -118,8 +120,7 @@ type is `Infallible`.
 
 The `assert` constructor panics if the given primitive floating-point value
 violates the proxy's constraints. This is equivalent to unwrapping the output of
-`new` (`assert` also provides consistent output in both `std` and `no_std`
-environments).
+`new`.
 
 Finally, the `into_superset` and `from_subset` conversions provide an
 inexpensive way to convert between proxy types with different but compatible
@@ -138,7 +139,7 @@ let w = z.into_inner();
 ```
 
 All conversions also support the standard `From`/`Into` and `TryFrom`/`TryInto`
-traits, which can also be applied to literals.
+traits, which can also be applied to primitives and literals.
 
 ```rust
 use core::convert::{TryFrom, TryInto};
@@ -159,14 +160,15 @@ Proxy types implement `Eq`, `Hash`, and `Ord`, but sometimes it is not possible
 or ergonomic to use such a type. Traits can be used with primitive
 floating-point values for ordering, equivalence, and hashing instead.
 
-| Floating-Point Trait | General Trait    |
+| Floating-Point Trait | Standard Trait   |
 |----------------------|------------------|
 | `FloatEq`            | `Eq`             |
 | `FloatHash`          | `Hash`           |
 | `FloatOrd`           | `Ord`            |
 
 These traits use the same total ordering and equivalence rules that proxy types
-do. They are implemented for base types as well as slices.
+do. They are implemented for primitive types like `f64` as well as slices like
+`[f64]`.
 
 ```rust
 use decorum::cmp::FloatEq;
