@@ -1,6 +1,7 @@
 //! Constraints on the members of floating-point values that proxy types may
 //! represent.
 
+use core::convert::Infallible;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 #[cfg(feature = "std")]
@@ -17,7 +18,10 @@ pub trait ExpectConstrained<T>: Sized {
     fn expect_constrained(self) -> T;
 }
 
-impl<T> ExpectConstrained<T> for Result<T, ConstraintViolation> {
+impl<T, E> ExpectConstrained<T> for Result<T, E>
+where
+    E: Debug,
+{
     #[cfg(not(feature = "std"))]
     fn expect_constrained(self) -> T {
         self.expect("floating-point constraint violated")
@@ -53,10 +57,12 @@ pub trait Constraint<T>: Member<RealSet>
 where
     T: Float + Primitive,
 {
+    type Error: Debug;
+
     /// Filter-maps a primitive floating-point value based on some constraints.
     ///
     /// Returns `None` for values that cannot satify constraints.
-    fn filter_map(value: T) -> Result<T, ConstraintViolation>;
+    fn filter_map(inner: T) -> Result<T, Self::Error>;
 }
 
 #[derive(Debug)]
@@ -73,8 +79,10 @@ impl<T> Constraint<T> for UnitConstraint<T>
 where
     T: Float + Primitive,
 {
-    fn filter_map(value: T) -> Result<T, ConstraintViolation> {
-        Ok(value)
+    type Error = Infallible;
+
+    fn filter_map(inner: T) -> Result<T, Self::Error> {
+        Ok(inner)
     }
 }
 
@@ -101,12 +109,14 @@ impl<T> Constraint<T> for NotNanConstraint<T>
 where
     T: Float + Primitive,
 {
-    fn filter_map(value: T) -> Result<T, ConstraintViolation> {
-        if value.is_nan() {
+    type Error = ConstraintViolation;
+
+    fn filter_map(inner: T) -> Result<T, Self::Error> {
+        if inner.is_nan() {
             Err(ConstraintViolation)
         }
         else {
-            Ok(value)
+            Ok(inner)
         }
     }
 }
@@ -130,12 +140,14 @@ impl<T> Constraint<T> for FiniteConstraint<T>
 where
     T: Float + Primitive,
 {
-    fn filter_map(value: T) -> Result<T, ConstraintViolation> {
-        if value.is_nan() || value.is_infinite() {
+    type Error = ConstraintViolation;
+
+    fn filter_map(inner: T) -> Result<T, Self::Error> {
+        if inner.is_nan() || inner.is_infinite() {
             Err(ConstraintViolation)
         }
         else {
-            Ok(value)
+            Ok(inner)
         }
     }
 }

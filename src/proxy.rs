@@ -90,13 +90,14 @@ where
     /// Creates a proxy from a primitive floating-point value.
     ///
     /// This construction is also provided via `TryFrom`, but `new` must be used
-    /// in generic contexts where the inner primitive type is unknown.
+    /// in generic code if the primitive floating-point type is unknown.
     ///
     /// # Errors
     ///
-    /// This construction and implementations of `TryFrom` return a
-    /// `ConstraintViolation` if the primitive floating-point value violates the
-    /// constraints of the proxy.
+    /// Returns a `ConstraintViolation` error if the primitive floating-point
+    /// value violates the constraints of the proxy. For `Total`, which has no
+    /// constraints, the error type is `Infallible` and the construction cannot
+    /// fail.
     ///
     /// # Examples
     ///
@@ -123,15 +124,17 @@ where
     /// // `R64` does not allow `NaN`s, but `0.0 / 0.0` produces a `NaN`.
     /// let x = R64::new(0.0 / 0.0).unwrap(); // Panics.
     /// ```
-    pub fn new(inner: T) -> Result<Self, ConstraintViolation> {
+    pub fn new(inner: T) -> Result<Self, P::Error> {
         P::filter_map(inner).map(|inner| Proxy {
             inner,
             phantom: PhantomData,
         })
     }
 
-    /// Creates a proxy from a primitive floating-point value and asserts
-    /// success.
+    /// Creates a proxy from a primitive floating-point value and asserts that
+    /// constraints are not violated.
+    ///
+    /// For `Total`, which has no constraints, this function never fails.
     ///
     /// # Panics
     ///
@@ -168,8 +171,6 @@ where
     ///
     /// # Examples
     ///
-    /// Converting a proxy into a primitive floating-point value:
-    ///
     /// ```rust
     /// use decorum::R64;
     ///
@@ -192,8 +193,6 @@ where
     ///
     /// # Examples
     ///
-    /// Converting between compatible proxy types:
-    ///
     /// ```rust
     /// # extern crate decorum;
     /// # extern crate num;
@@ -214,8 +213,6 @@ where
     /// superset of the values that are members of its constraint.
     ///
     /// # Examples
-    ///
-    /// Converting between compatible proxy types:
     ///
     /// ```rust
     /// # extern crate decorum;
@@ -1837,6 +1834,9 @@ macro_rules! impl_foreign_real {
 impl_foreign_real!(proxy => Finite);
 impl_foreign_real!(proxy => NotNan);
 
+// `TryFrom` cannot be implemented over an open type `T` and cannot be
+// implemented for general constraints, because it would conflict with the
+// `From` implementation for `Total`.
 macro_rules! impl_try_from {
     (proxy => $p:ident) => {
         impl_try_from!(proxy => $p, primitive => f32);

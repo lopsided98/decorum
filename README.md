@@ -101,7 +101,7 @@ implements `Float` from both Decorum and [`num-traits`].
 ## Construction and Conversions
 
 Proxy types are used via constructors and conversions from and into primitive
-floating-point types and other proxy types.
+floating-point types and other compatible proxy types.
 
 | Method          | Input     | Output    | Violation |
 |-----------------|-----------|-----------|-----------|
@@ -112,20 +112,28 @@ floating-point types and other proxy types.
 | `into_superset` | proxy     | proxy     | n/a       |
 
 The `new` constructor and `into_inner` conversion move primitive floating-point
-values into and out of proxies. The `assert` constructor panics if the given
-primitive floating-point value violates the proxy's constraints. The
-`into_superset` and `from_subset` conversions provide an inexpensive way to
-convert between proxy types with different but compatible constraints.
+values into and out of proxies and are the most basic way to construct and
+deconstruct proxies. Note that for `Total`, which has no constraints, the error
+type is `Infallible`.
+
+The `assert` constructor panics if the given primitive floating-point value
+violates the proxy's constraints. This is equivalent to unwrapping the output of
+`new` (`assert` also provides consistent output in both `std` and `no_std`
+environments).
+
+Finally, the `into_superset` and `from_subset` conversions provide an
+inexpensive way to convert between proxy types with different but compatible
+constraints.
 
 ```rust
-use decorum::R32;
+use decorum::R64;
 
 fn f(x: R64) -> R64 {
     x * 3.0
 }
 
-let y = R32::assert(3.1459);
-let z = f(R32::new(2.7182).unwrap());
+let y = R64::assert(3.1459);
+let z = f(R64::new(2.7182).unwrap());
 let w = z.into_inner();
 ```
 
@@ -134,18 +142,18 @@ traits, which can also be applied to literals.
 
 ```rust
 use core::convert::{TryFrom, TryInto};
-use decorum::R32;
+use decorum::R64;
 
-fn f(x: R32) -> R32 {
+fn f(x: R64) -> R64 {
     x * 2.0
 }
 
-let y: R32 = 3.1459.try_into().unwrap();
-let z = f(R32::try_from(2.7182).unwrap());
+let y: R64 = 3.1459.try_into().unwrap();
+let z = f(R64::try_from(2.7182).unwrap());
 let w: f32 = z.into();
 ```
 
-## Primitives
+## Hashing and Comparing Primitives
 
 Proxy types implement `Eq`, `Hash`, and `Ord`, but sometimes it is not possible
 or ergonomic to use such a type. Traits can be used with primitive
