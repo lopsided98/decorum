@@ -74,14 +74,22 @@
     html_logo_url = "https://raw.githubusercontent.com/olson-sean-k/decorum/master/doc/decorum.svg?sanitize=true"
 )]
 #![no_std]
+#![cfg_attr(all(nightly, feature = "unstable"), feature(try_trait_v2))]
 
 #[cfg(feature = "std")]
 extern crate std;
 
+pub mod cmp;
+mod constraint;
+mod error;
+pub mod hash;
+mod proxy;
+
+use core::convert::Infallible;
 use core::mem;
 use core::num::FpCategory;
-use core::ops::Neg;
-use num_traits::{Num, PrimInt, Signed, Unsigned};
+use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
+use num_traits::{PrimInt, Unsigned};
 
 #[cfg(not(feature = "std"))]
 pub(crate) use num_traits::float::FloatCore as ForeignFloat;
@@ -90,19 +98,15 @@ pub(crate) use num_traits::real::Real as ForeignReal;
 #[cfg(feature = "std")]
 pub(crate) use num_traits::Float as ForeignFloat;
 
-pub mod cmp;
-mod constraint;
-pub mod hash;
-mod proxy;
-
 use crate::cmp::IntrinsicOrd;
 use crate::constraint::{FiniteConstraint, NotNanConstraint, UnitConstraint};
 
 pub use crate::constraint::ConstraintViolation;
+pub use crate::error::{Assert, ConstraintResult, TryOption, TryResult};
 pub use crate::proxy::Proxy;
 
 /// Floating-point representation with total ordering.
-pub type Total<T> = Proxy<T, UnitConstraint<T>>;
+pub type Total<T> = Proxy<T, UnitConstraint, Infallible>;
 
 /// Floating-point representation that cannot be `NaN`.
 ///
@@ -110,7 +114,7 @@ pub type Total<T> = Proxy<T, UnitConstraint<T>>;
 /// type implements a total ordering.
 ///
 /// [`Total`]: crate::Total
-pub type NotNan<T> = Proxy<T, NotNanConstraint<T>>;
+pub type NotNan<T, M = Assert> = Proxy<T, NotNanConstraint, M>;
 
 /// 32-bit floating-point representation that cannot be `NaN`.
 pub type N32 = NotNan<f32>;
@@ -123,7 +127,7 @@ pub type N64 = NotNan<f64>;
 /// [`Total`], this type implements a total ordering.
 ///
 /// [`Total`]: crate::Total
-pub type Finite<T> = Proxy<T, FiniteConstraint<T>>;
+pub type Finite<T, M = Assert> = Proxy<T, FiniteConstraint, M>;
 
 /// 32-bit floating-point representation that must be a real number.
 ///
@@ -297,6 +301,11 @@ impl Encoding for f64 {
     }
 }
 
+// TODO: Bounds on the following traits were removed, because they require
+//       `NumOps` and that requires operation outputs to be closed:
+//
+//       - `Num`
+//       - `Signed`
 /// Types that can represent real numbers.
 ///
 /// Provides values and operations that generally apply to real numbers. As
@@ -306,7 +315,20 @@ impl Encoding for f64 {
 ///
 /// Some members of this trait depend on the standard library and the `std`
 /// feature.
-pub trait Real: Copy + Neg<Output = Self> + Num + PartialOrd + Signed {
+pub trait Real:
+    Add<Output = Self::Branch>
+    + Copy
+    + Div<Output = Self::Branch>
+    + Mul<Output = Self::Branch>
+    + Neg<Output = Self>
+    + PartialOrd
+    + Rem<Output = Self::Branch>
+    + Sub<Output = Self::Branch>
+{
+    type Branch;
+
+    const ZERO: Self;
+    const ONE: Self;
     const E: Self;
     const PI: Self;
     const FRAC_1_PI: Self;
@@ -324,30 +346,51 @@ pub trait Real: Copy + Neg<Output = Self> + Num + PartialOrd + Signed {
     const LOG2_E: Self;
     const LOG10_E: Self;
 
+    fn is_zero(self) -> bool;
+    fn is_one(self) -> bool;
+
+    fn is_positive(self) -> bool;
+    fn is_negative(self) -> bool;
+    #[cfg(feature = "std")]
+    fn abs(self) -> Self;
+    #[cfg(feature = "std")]
+    fn signum(self) -> Self {
+        if self.is_positive() {
+            Self::ONE
+        }
+        else {
+            -Self::ONE
+        }
+    }
+
     fn floor(self) -> Self;
     fn ceil(self) -> Self;
     fn round(self) -> Self;
     fn trunc(self) -> Self;
     fn fract(self) -> Self;
-    fn recip(self) -> Self;
+    fn recip(self) -> Self::Branch; // Undefined or infinity.
 
     #[cfg(feature = "std")]
-    fn mul_add(self, a: Self, b: Self) -> Self;
+    fn mul_add(self, a: Self, b: Self) -> Self::Branch; // Overflow.
+    #[cfg(feature = "std")]
+    fn div_euclid(self, n: Self) -> Self::Branch; // Undefined or infinity.
+    #[cfg(feature = "std")]
+    fn rem_euclid(self, n: Self) -> Self::Branch; // Undefined or infinity.
 
     #[cfg(feature = "std")]
-    fn powi(self, n: i32) -> Self;
+    fn powi(self, n: i32) -> Self::Branch; // Overflow.
     #[cfg(feature = "std")]
-    fn powf(self, n: Self) -> Self;
+    fn powf(self, n: Self) -> Self::Branch; // Overflow.
     #[cfg(feature = "std")]
-    fn sqrt(self) -> Self;
+    fn sqrt(self) -> Self::Branch; // Undefined or infinity.
     #[cfg(feature = "std")]
     fn cbrt(self) -> Self;
     #[cfg(feature = "std")]
-    fn exp(self) -> Self;
+    fn exp(self) -> Self::Branch; // Overflow.
     #[cfg(feature = "std")]
-    fn exp2(self) -> Self;
+    fn exp2(self) -> Self::Branch; // Overflow.
     #[cfg(feature = "std")]
-    fn exp_m1(self) -> Self;
+    fn exp_m1(self) -> Self::Branch; // Overflow.
     #[cfg(feature = "std")]
     fn log(self, base: Self) -> Self;
     #[cfg(feature = "std")]
@@ -360,17 +403,21 @@ pub trait Real: Copy + Neg<Output = Self> + Num + PartialOrd + Signed {
     fn ln_1p(self) -> Self;
 
     #[cfg(feature = "std")]
-    fn hypot(self, other: Self) -> Self;
+    fn to_degrees(self) -> Self::Branch; // Overflow.
+    #[cfg(feature = "std")]
+    fn to_radians(self) -> Self;
+    #[cfg(feature = "std")]
+    fn hypot(self, other: Self) -> Self::Branch; // Overflow.
     #[cfg(feature = "std")]
     fn sin(self) -> Self;
     #[cfg(feature = "std")]
     fn cos(self) -> Self;
     #[cfg(feature = "std")]
-    fn tan(self) -> Self;
+    fn tan(self) -> Self::Branch; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn asin(self) -> Self;
+    fn asin(self) -> Self::Branch; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn acos(self) -> Self;
+    fn acos(self) -> Self::Branch; // Undefined or infinity.
     #[cfg(feature = "std")]
     fn atan(self) -> Self;
     #[cfg(feature = "std")]
@@ -384,11 +431,11 @@ pub trait Real: Copy + Neg<Output = Self> + Num + PartialOrd + Signed {
     #[cfg(feature = "std")]
     fn tanh(self) -> Self;
     #[cfg(feature = "std")]
-    fn asinh(self) -> Self;
+    fn asinh(self) -> Self::Branch; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn acosh(self) -> Self;
+    fn acosh(self) -> Self::Branch; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn atanh(self) -> Self;
+    fn atanh(self) -> Self::Branch; // Undefined or infinity.
 }
 
 /// Floating-point representations.
@@ -397,9 +444,9 @@ pub trait Real: Copy + Neg<Output = Self> + Num + PartialOrd + Signed {
 /// expose the details of that encoding, including infinities, `NaN`, and
 /// operations on real numbers. This trait is implemented by primitive
 /// floating-point types and the `Total` proxy type.
-pub trait Float: Encoding + Infinite + IntrinsicOrd + Nan + Real {}
+pub trait Float: Encoding + Infinite + IntrinsicOrd + Nan + Real<Branch = Self> {}
 
-impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real {}
+impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real<Branch = T> {}
 
 /// Primitive floating-point types.
 pub trait Primitive {}
@@ -431,10 +478,14 @@ macro_rules! impl_primitive {
         impl Primitive for $t {}
 
         impl Real for $t {
+            type Branch = $t;
+
             // TODO: The propagation from a constant in a module requires that
             //       this macro accept an `ident` token rather than a `ty`
             //       token. Use `ty` if these constants become associated
             //       constants of the primitive types.
+            const ZERO: Self = 0.0;
+            const ONE: Self = 1.0;
             const E: Self = core::$t::consts::E;
             const PI: Self = core::$t::consts::PI;
             const FRAC_1_PI: Self = core::$t::consts::FRAC_1_PI;
@@ -451,6 +502,32 @@ macro_rules! impl_primitive {
             const LN_10: Self = core::$t::consts::LN_10;
             const LOG2_E: Self = core::$t::consts::LOG2_E;
             const LOG10_E: Self = core::$t::consts::LOG10_E;
+
+            fn is_zero(self) -> bool {
+                self == Self::ZERO
+            }
+
+            fn is_one(self) -> bool {
+                self == Self::ONE
+            }
+
+            fn is_positive(self) -> bool {
+                <$t>::is_sign_positive(self)
+            }
+
+            fn is_negative(self) -> bool {
+                <$t>::is_sign_negative(self)
+            }
+
+            #[cfg(feature = "std")]
+            fn abs(self) -> Self {
+                <$t>::abs(self)
+            }
+
+            #[cfg(feature = "std")]
+            fn signum(self) -> Self {
+                <$t>::signum(self)
+            }
 
             fn floor(self) -> Self {
                 <$t>::floor(self)
@@ -472,27 +549,37 @@ macro_rules! impl_primitive {
                 <$t>::fract(self)
             }
 
-            fn recip(self) -> Self {
+            fn recip(self) -> Self::Branch {
                 <$t>::recip(self)
             }
 
             #[cfg(feature = "std")]
-            fn mul_add(self, a: Self, b: Self) -> Self {
+            fn mul_add(self, a: Self, b: Self) -> Self::Branch {
                 <$t>::mul_add(self, a, b)
             }
 
             #[cfg(feature = "std")]
-            fn powi(self, n: i32) -> Self {
+            fn div_euclid(self, n: Self) -> Self::Branch {
+                <$t>::div_euclid(self, n)
+            }
+
+            #[cfg(feature = "std")]
+            fn rem_euclid(self, n: Self) -> Self::Branch {
+                <$t>::rem_euclid(self, n)
+            }
+
+            #[cfg(feature = "std")]
+            fn powi(self, n: i32) -> Self::Branch {
                 <$t>::powi(self, n)
             }
 
             #[cfg(feature = "std")]
-            fn powf(self, n: Self) -> Self {
+            fn powf(self, n: Self) -> Self::Branch {
                 <$t>::powf(self, n)
             }
 
             #[cfg(feature = "std")]
-            fn sqrt(self) -> Self {
+            fn sqrt(self) -> Self::Branch {
                 <$t>::sqrt(self)
             }
 
@@ -502,17 +589,17 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn exp(self) -> Self {
+            fn exp(self) -> Self::Branch {
                 <$t>::exp(self)
             }
 
             #[cfg(feature = "std")]
-            fn exp2(self) -> Self {
+            fn exp2(self) -> Self::Branch {
                 <$t>::exp2(self)
             }
 
             #[cfg(feature = "std")]
-            fn exp_m1(self) -> Self {
+            fn exp_m1(self) -> Self::Branch {
                 <$t>::exp_m1(self)
             }
 
@@ -542,7 +629,17 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn hypot(self, other: Self) -> Self {
+            fn to_degrees(self) -> Self::Branch {
+                <$t>::to_degrees(self)
+            }
+
+            #[cfg(feature = "std")]
+            fn to_radians(self) -> Self {
+                <$t>::to_radians(self)
+            }
+
+            #[cfg(feature = "std")]
+            fn hypot(self, other: Self) -> Self::Branch {
                 <$t>::hypot(self, other)
             }
 
@@ -557,17 +654,17 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn tan(self) -> Self {
+            fn tan(self) -> Self::Branch {
                 <$t>::tan(self)
             }
 
             #[cfg(feature = "std")]
-            fn asin(self) -> Self {
+            fn asin(self) -> Self::Branch {
                 <$t>::asin(self)
             }
 
             #[cfg(feature = "std")]
-            fn acos(self) -> Self {
+            fn acos(self) -> Self::Branch {
                 <$t>::acos(self)
             }
 
@@ -602,17 +699,17 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn asinh(self) -> Self {
+            fn asinh(self) -> Self::Branch {
                 <$t>::asinh(self)
             }
 
             #[cfg(feature = "std")]
-            fn acosh(self) -> Self {
+            fn acosh(self) -> Self::Branch {
                 <$t>::acosh(self)
             }
 
             #[cfg(feature = "std")]
-            fn atanh(self) -> Self {
+            fn atanh(self) -> Self::Branch {
                 <$t>::atanh(self)
             }
         }

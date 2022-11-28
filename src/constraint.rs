@@ -5,13 +5,15 @@ use core::convert::Infallible;
 use core::fmt::Debug;
 #[cfg(not(feature = "std"))]
 use core::fmt::{self, Display, Formatter};
-use core::marker::PhantomData;
 #[cfg(feature = "std")]
 use thiserror::Error;
 
+use crate::proxy::ClosedProxy;
 use crate::{Float, Primitive};
 
 const VIOLATION_MESSAGE: &str = "floating-point constraint violated";
+
+pub type Error<T> = <<T as ClosedProxy>::Constraint as Constraint>::Error;
 
 #[cfg_attr(feature = "std", derive(Error))]
 #[cfg_attr(feature = "std", error("{}", VIOLATION_MESSAGE))]
@@ -68,10 +70,7 @@ impl<P, Q> SubsetOf<Q> for P where Q: SupersetOf<P> {}
 /// error from its `check` function if a primitive floating-point value violates
 /// the constraint. Note that constraints require `Member<RealSet>`, meaning
 /// that the set of real numbers must always be supported and is implied.
-pub trait Constraint<T>: Member<RealSet>
-where
-    T: Float + Primitive,
-{
+pub trait Constraint: Member<RealSet> {
     type Error: Debug;
 
     /// Determines if a primitive floating-point value satisfies the constraint.
@@ -80,54 +79,46 @@ where
     ///
     /// Returns `Self::Error` if the primitive floating-point value violates the
     /// constraint.
-    fn check(inner: &T) -> Result<(), Self::Error>;
+    fn check<T>(inner: &T) -> Result<(), Self::Error>
+    where
+        T: Float + Primitive;
 }
 
 #[derive(Debug)]
-pub struct UnitConstraint<T>
-where
-    T: Float + Primitive,
-{
-    phantom: PhantomData<fn() -> T>,
-}
+pub enum UnitConstraint {}
 
-impl<T> Constraint<T> for UnitConstraint<T>
-where
-    T: Float + Primitive,
-{
+impl Constraint for UnitConstraint {
     type Error = Infallible;
 
-    fn check(_: &T) -> Result<(), Self::Error> {
+    fn check<T>(_: &T) -> Result<(), Self::Error>
+    where
+        T: Float + Primitive,
+    {
         Ok(())
     }
 }
 
-impl<T> Member<InfinitySet> for UnitConstraint<T> where T: Float + Primitive {}
+impl Member<InfinitySet> for UnitConstraint {}
 
-impl<T> Member<NanSet> for UnitConstraint<T> where T: Float + Primitive {}
+impl Member<NanSet> for UnitConstraint {}
 
-impl<T> Member<RealSet> for UnitConstraint<T> where T: Float + Primitive {}
+impl Member<RealSet> for UnitConstraint {}
 
-impl<T> SupersetOf<FiniteConstraint<T>> for UnitConstraint<T> where T: Float + Primitive {}
+impl SupersetOf<FiniteConstraint> for UnitConstraint {}
 
-impl<T> SupersetOf<NotNanConstraint<T>> for UnitConstraint<T> where T: Float + Primitive {}
+impl SupersetOf<NotNanConstraint> for UnitConstraint {}
 
 /// Disallows `NaN`s.
 #[derive(Debug)]
-pub struct NotNanConstraint<T>
-where
-    T: Float + Primitive,
-{
-    phantom: PhantomData<fn() -> T>,
-}
+pub enum NotNanConstraint {}
 
-impl<T> Constraint<T> for NotNanConstraint<T>
-where
-    T: Float + Primitive,
-{
+impl Constraint for NotNanConstraint {
     type Error = ConstraintViolation;
 
-    fn check(inner: &T) -> Result<(), Self::Error> {
+    fn check<T>(inner: &T) -> Result<(), Self::Error>
+    where
+        T: Float + Primitive,
+    {
         if inner.is_nan() {
             Err(ConstraintViolation)
         }
@@ -137,28 +128,23 @@ where
     }
 }
 
-impl<T> Member<InfinitySet> for NotNanConstraint<T> where T: Float + Primitive {}
+impl Member<InfinitySet> for NotNanConstraint {}
 
-impl<T> Member<RealSet> for NotNanConstraint<T> where T: Float + Primitive {}
+impl Member<RealSet> for NotNanConstraint {}
 
-impl<T> SupersetOf<FiniteConstraint<T>> for NotNanConstraint<T> where T: Float + Primitive {}
+impl SupersetOf<FiniteConstraint> for NotNanConstraint {}
 
 /// Disallows `NaN`s and infinities.
 #[derive(Debug)]
-pub struct FiniteConstraint<T>
-where
-    T: Float + Primitive,
-{
-    phantom: PhantomData<fn() -> T>,
-}
+pub enum FiniteConstraint {}
 
-impl<T> Constraint<T> for FiniteConstraint<T>
-where
-    T: Float + Primitive,
-{
+impl Constraint for FiniteConstraint {
     type Error = ConstraintViolation;
 
-    fn check(inner: &T) -> Result<(), Self::Error> {
+    fn check<T>(inner: &T) -> Result<(), Self::Error>
+    where
+        T: Float + Primitive,
+    {
         if inner.is_nan() || inner.is_infinite() {
             Err(ConstraintViolation)
         }
@@ -168,4 +154,4 @@ where
     }
 }
 
-impl<T> Member<RealSet> for FiniteConstraint<T> where T: Float + Primitive {}
+impl Member<RealSet> for FiniteConstraint {}
