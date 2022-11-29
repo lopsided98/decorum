@@ -10,14 +10,9 @@ use core::marker::PhantomData;
 use thiserror::Error;
 
 use crate::error::ErrorMode;
-use crate::proxy::ClosedProxy;
 use crate::{Float, Primitive};
 
 const VIOLATION_MESSAGE: &str = "floating-point constraint violated";
-
-pub type ConstraintOf<T> = <T as ClosedProxy>::Constraint;
-pub type Mode<T> = <<T as ClosedProxy>::Constraint as Constraint>::ErrorMode;
-pub type Error<T> = <<T as ClosedProxy>::Constraint as Constraint>::Error;
 
 #[cfg_attr(feature = "std", derive(Error))]
 #[cfg_attr(feature = "std", error("{}", VIOLATION_MESSAGE))]

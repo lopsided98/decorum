@@ -1,17 +1,13 @@
 use core::convert::Infallible;
 use core::fmt::Debug;
 #[cfg(all(nightly, feature = "unstable"))]
-use core::ops::{ControlFlow, FromResidual, Try as TryOperation};
+use core::ops::{ControlFlow, FromResidual, Try};
 
-use crate::constraint::{Error, ExpectConstrained as _, Mode};
-use crate::proxy::ClosedProxy;
+use crate::constraint::ExpectConstrained as _;
+use crate::proxy::{ClosedProxy, ErrorOf};
 
 pub use ConstraintResult::Err as FloatErr;
 pub use ConstraintResult::Ok as FloatOk;
-
-pub type PrimitiveBranch<T> =
-    <Mode<T> as ErrorMode>::Branch<<T as ClosedProxy>::Primitive, Error<T>>;
-pub type ProxyBranch<T> = <Mode<T> as ErrorMode>::Branch<T, Error<T>>;
 
 pub trait ErrorMode {
     type Branch<T, E>;
@@ -38,7 +34,7 @@ impl ErrorMode for Infallible {
     }
 }
 
-pub trait NonResidual<T>: ErrorMode<Branch<T, Error<T>> = T>
+pub trait NonResidual<T>: ErrorMode<Branch<T, ErrorOf<T>> = T>
 where
     T: ClosedProxy,
 {
@@ -47,9 +43,15 @@ where
 impl<T, M> NonResidual<T> for M
 where
     T: ClosedProxy,
-    M: ErrorMode<Branch<T, Error<T>> = T>,
+    M: ErrorMode<Branch<T, ErrorOf<T>> = T>,
 {
 }
+
+pub trait ResidualBranch {}
+
+impl<T> ResidualBranch for Option<T> {}
+
+impl<T, E> ResidualBranch for Result<T, E> {}
 
 pub enum Assert {}
 
@@ -139,7 +141,7 @@ impl<T, E> FromResidual for ConstraintResult<T, E> {
 }
 
 #[cfg(all(nightly, feature = "unstable"))]
-impl<T, E> TryOperation for ConstraintResult<T, E> {
+impl<T, E> Try for ConstraintResult<T, E> {
     type Output = T;
     type Residual = Result<Infallible, E>;
 

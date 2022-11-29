@@ -23,10 +23,10 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::cmp::{self, FloatEq, FloatOrd, IntrinsicOrd};
 use crate::constraint::{
-    Constraint, ConstraintOf, ConstraintViolation, ExpectConstrained, InfinitySet, Member, NanSet,
-    SubsetOf, SupersetOf,
+    Constraint, ConstraintViolation, ExpectConstrained, InfinitySet, Member, NanSet, SubsetOf,
+    SupersetOf,
 };
-use crate::error::{ErrorMode, NonResidual, ProxyBranch};
+use crate::error::{ErrorMode, NonResidual};
 use crate::hash::FloatHash;
 #[cfg(feature = "std")]
 use crate::ForeignReal;
@@ -35,9 +35,10 @@ use crate::{
     Total,
 };
 
-// TODO:
-#[cfg(all(nightly, feature = "unstable"))]
-use core::ops::{ControlFlow, FromResidual, Try};
+pub type BranchOf<T> = <ModeOf<T> as ErrorMode>::Branch<T, ErrorOf<T>>;
+pub type ConstraintOf<T> = <T as ClosedProxy>::Constraint;
+pub type ModeOf<T> = <ConstraintOf<T> as Constraint>::ErrorMode;
+pub type ErrorOf<T> = <ConstraintOf<T> as Constraint>::Error;
 
 /// A `Proxy` type that is closed over its primitive floating-point type and
 /// constraint.
@@ -343,14 +344,14 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    pub fn new(inner: T) -> ProxyBranch<Self> {
+    pub fn new(inner: T) -> BranchOf<Self> {
         P::branch(inner, |inner| Proxy {
             inner,
             phantom: PhantomData,
         })
     }
 
-    fn map<F>(self, f: F) -> ProxyBranch<Self>
+    fn map<F>(self, f: F) -> BranchOf<Self>
     where
         F: FnOnce(T) -> T,
     {
@@ -364,7 +365,7 @@ where
         Proxy::unchecked(f(self.into_inner()))
     }
 
-    fn zip_map<F>(self, other: Self, f: F) -> ProxyBranch<Self>
+    fn zip_map<F>(self, other: Self, f: F) -> BranchOf<Self>
     where
         F: FnOnce(T, T) -> T,
     {
@@ -449,7 +450,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn add(self, other: Self) -> Self::Output {
         self.zip_map(other, Add::add)
@@ -461,40 +462,41 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn add(self, other: T) -> Self::Output {
         self.map(|inner| inner + other)
     }
 }
 
-#[cfg(all(nightly, feature = "unstable"))]
-impl<T, P> Add<ProxyBranch<Self>> for Proxy<T, P>
-where
-    ProxyBranch<Self>: Try,
-    T: Float + Primitive,
-    P: Constraint,
-{
-    type Output = ProxyBranch<Self>;
-
-    fn add(self, other: ProxyBranch<Self>) -> Self::Output {
-        self.zip_map(other?, Add::add)
-    }
-}
-
-#[cfg(all(nightly, feature = "unstable"))]
-impl<T, P> Add<Proxy<T, P>> for ProxyBranch<Proxy<T, P>>
-where
-    Self: Try,
-    T: Float + Primitive,
-    P: Constraint,
-{
-    type Output = ProxyBranch<Self>;
-
-    fn add(self, other: Proxy<T, P>) -> Self::Output {
-        self?.zip_map(other, Add::add)
-    }
-}
+// TODO:
+//#[cfg(all(nightly, feature = "unstable"))]
+//impl<T, P> Add<BranchOf<Self>> for Proxy<T, P>
+//where
+//    BranchOf<Self>: Try,
+//    T: Float + Primitive,
+//    P: Constraint,
+//{
+//    type Output = BranchOf<Self>;
+//
+//    fn add(self, other: BranchOf<Self>) -> Self::Output {
+//        self.zip_map(other?, Add::add)
+//    }
+//}
+//
+//#[cfg(all(nightly, feature = "unstable"))]
+//impl<T, P> Add<Proxy<T, P>> for BranchOf<Proxy<T, P>>
+//where
+//    Self: Try,
+//    T: Float + Primitive,
+//    P: Constraint,
+//{
+//    type Output = Self;
+//
+//    fn add(self, other: Proxy<T, P>) -> Self::Output {
+//        self?.zip_map(other, Add::add)
+//    }
+//}
 
 impl<T, P> AddAssign for Proxy<T, P>
 where
@@ -612,7 +614,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn div(self, other: Self) -> Self::Output {
         self.zip_map(other, Div::div)
@@ -624,7 +626,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn div(self, other: T) -> Self::Output {
         self.map(|inner| inner / other)
@@ -1214,7 +1216,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn mul(self, other: Self) -> Self::Output {
         self.zip_map(other, Mul::mul)
@@ -1226,7 +1228,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn mul(self, other: T) -> Self::Output {
         self.map(|a| a * other)
@@ -1394,7 +1396,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Branch = ProxyBranch<Self>;
+    type Branch = BranchOf<Self>;
 
     const ZERO: Self = Proxy::unchecked(Real::ZERO);
     const ONE: Self = Proxy::unchecked(Real::ONE);
@@ -1660,7 +1662,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn rem(self, other: Self) -> Self::Output {
         self.zip_map(other, Rem::rem)
@@ -1672,7 +1674,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn rem(self, other: T) -> Self::Output {
         self.map(|inner| inner % other)
@@ -1746,7 +1748,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn sub(self, other: Self) -> Self::Output {
         self.zip_map(other, Sub::sub)
@@ -1758,7 +1760,7 @@ where
     T: Float + Primitive,
     P: Constraint,
 {
-    type Output = ProxyBranch<Self>;
+    type Output = BranchOf<Self>;
 
     fn sub(self, other: T) -> Self::Output {
         self.map(|inner| inner - other)
