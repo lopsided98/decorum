@@ -85,7 +85,6 @@ mod error;
 pub mod hash;
 mod proxy;
 
-use core::convert::Infallible;
 use core::mem;
 use core::num::FpCategory;
 use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
@@ -106,7 +105,7 @@ pub use crate::error::{Assert, ConstraintResult, TryOption, TryResult};
 pub use crate::proxy::Proxy;
 
 /// Floating-point representation with total ordering.
-pub type Total<T> = Proxy<T, UnitConstraint, Infallible>;
+pub type Total<T> = Proxy<T, UnitConstraint>;
 
 /// Floating-point representation that cannot be `NaN`.
 ///
@@ -114,7 +113,7 @@ pub type Total<T> = Proxy<T, UnitConstraint, Infallible>;
 /// type implements a total ordering.
 ///
 /// [`Total`]: crate::Total
-pub type NotNan<T, M = Assert> = Proxy<T, NotNanConstraint, M>;
+pub type NotNan<T, M = Assert> = Proxy<T, NotNanConstraint<M>>;
 
 /// 32-bit floating-point representation that cannot be `NaN`.
 pub type N32 = NotNan<f32>;
@@ -127,7 +126,7 @@ pub type N64 = NotNan<f64>;
 /// [`Total`], this type implements a total ordering.
 ///
 /// [`Total`]: crate::Total
-pub type Finite<T, M = Assert> = Proxy<T, FiniteConstraint, M>;
+pub type Finite<T, M = Assert> = Proxy<T, FiniteConstraint<M>>;
 
 /// 32-bit floating-point representation that must be a real number.
 ///

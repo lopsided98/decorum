@@ -5,14 +5,18 @@ use core::convert::Infallible;
 use core::fmt::Debug;
 #[cfg(not(feature = "std"))]
 use core::fmt::{self, Display, Formatter};
+use core::marker::PhantomData;
 #[cfg(feature = "std")]
 use thiserror::Error;
 
+use crate::error::ErrorMode;
 use crate::proxy::ClosedProxy;
 use crate::{Float, Primitive};
 
 const VIOLATION_MESSAGE: &str = "floating-point constraint violated";
 
+pub type ConstraintOf<T> = <T as ClosedProxy>::Constraint;
+pub type Mode<T> = <<T as ClosedProxy>::Constraint as Constraint>::ErrorMode;
 pub type Error<T> = <<T as ClosedProxy>::Constraint as Constraint>::Error;
 
 #[cfg_attr(feature = "std", derive(Error))]
@@ -71,6 +75,7 @@ impl<P, Q> SubsetOf<Q> for P where Q: SupersetOf<P> {}
 /// the constraint. Note that constraints require `Member<RealSet>`, meaning
 /// that the set of real numbers must always be supported and is implied.
 pub trait Constraint: Member<RealSet> {
+    type ErrorMode: ErrorMode;
     type Error: Debug;
 
     /// Determines if a primitive floating-point value satisfies the constraint.
@@ -79,22 +84,41 @@ pub trait Constraint: Member<RealSet> {
     ///
     /// Returns `Self::Error` if the primitive floating-point value violates the
     /// constraint.
-    fn check<T>(inner: &T) -> Result<(), Self::Error>
+    fn noncompliance<T>(inner: T) -> Option<Self::Error>
     where
         T: Float + Primitive;
+
+    fn compliance<T>(inner: T) -> Result<T, Self::Error>
+    where
+        T: Float + Primitive,
+    {
+        Self::noncompliance(inner).map_or(Ok(inner), |error| Err(error))
+    }
+
+    fn branch<T, U, F>(inner: T, f: F) -> <Self::ErrorMode as ErrorMode>::Branch<U, Self::Error>
+    where
+        T: Float + Primitive,
+        F: FnOnce(T) -> U,
+    {
+        match Self::noncompliance(inner) {
+            Some(error) => Self::ErrorMode::from_residual(error),
+            _ => Self::ErrorMode::from_output(f(inner)),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum UnitConstraint {}
 
 impl Constraint for UnitConstraint {
+    type ErrorMode = Infallible;
     type Error = Infallible;
 
-    fn check<T>(_: &T) -> Result<(), Self::Error>
+    fn noncompliance<T>(_inner: T) -> Option<Self::Error>
     where
         T: Float + Primitive,
     {
-        Ok(())
+        None
     }
 }
 
@@ -104,54 +128,56 @@ impl Member<NanSet> for UnitConstraint {}
 
 impl Member<RealSet> for UnitConstraint {}
 
-impl SupersetOf<FiniteConstraint> for UnitConstraint {}
+impl<M> SupersetOf<FiniteConstraint<M>> for UnitConstraint {}
 
-impl SupersetOf<NotNanConstraint> for UnitConstraint {}
+impl<M> SupersetOf<NotNanConstraint<M>> for UnitConstraint {}
 
 /// Disallows `NaN`s.
 #[derive(Debug)]
-pub enum NotNanConstraint {}
+pub struct NotNanConstraint<M> {
+    phantom: PhantomData<fn() -> M>,
+}
 
-impl Constraint for NotNanConstraint {
+impl<M> Constraint for NotNanConstraint<M>
+where
+    M: ErrorMode,
+{
+    type ErrorMode = M;
     type Error = ConstraintViolation;
 
-    fn check<T>(inner: &T) -> Result<(), Self::Error>
+    fn noncompliance<T>(inner: T) -> Option<Self::Error>
     where
         T: Float + Primitive,
     {
-        if inner.is_nan() {
-            Err(ConstraintViolation)
-        }
-        else {
-            Ok(())
-        }
+        inner.is_nan().then(|| ConstraintViolation)
     }
 }
 
-impl Member<InfinitySet> for NotNanConstraint {}
+impl<M> Member<InfinitySet> for NotNanConstraint<M> {}
 
-impl Member<RealSet> for NotNanConstraint {}
+impl<M> Member<RealSet> for NotNanConstraint<M> {}
 
-impl SupersetOf<FiniteConstraint> for NotNanConstraint {}
+impl<M> SupersetOf<FiniteConstraint<M>> for NotNanConstraint<M> {}
 
 /// Disallows `NaN`s and infinities.
 #[derive(Debug)]
-pub enum FiniteConstraint {}
+pub struct FiniteConstraint<M> {
+    phantom: PhantomData<fn() -> M>,
+}
 
-impl Constraint for FiniteConstraint {
+impl<M> Constraint for FiniteConstraint<M>
+where
+    M: ErrorMode,
+{
+    type ErrorMode = M;
     type Error = ConstraintViolation;
 
-    fn check<T>(inner: &T) -> Result<(), Self::Error>
+    fn noncompliance<T>(inner: T) -> Option<Self::Error>
     where
         T: Float + Primitive,
     {
-        if inner.is_nan() || inner.is_infinite() {
-            Err(ConstraintViolation)
-        }
-        else {
-            Ok(())
-        }
+        (inner.is_nan() || inner.is_infinite()).then(|| ConstraintViolation)
     }
 }
 
-impl Member<RealSet> for FiniteConstraint {}
+impl<M> Member<RealSet> for FiniteConstraint<M> {}

@@ -3,30 +3,22 @@ use core::fmt::Debug;
 #[cfg(all(nightly, feature = "unstable"))]
 use core::ops::{ControlFlow, FromResidual, Try as TryOperation};
 
-use crate::constraint::{Constraint, Error, ExpectConstrained as _};
+use crate::constraint::{Error, ExpectConstrained as _, Mode};
 use crate::proxy::ClosedProxy;
 
 pub use ConstraintResult::Err as FloatErr;
 pub use ConstraintResult::Ok as FloatOk;
 
-pub type PrimitiveBranch<T> = <<T as ClosedProxy>::ErrorMode as ErrorMode>::Branch<
-    <T as ClosedProxy>::Primitive,
-    <<T as ClosedProxy>::Constraint as Constraint>::Error,
->;
-pub type ProxyBranch<T> = <<T as ClosedProxy>::ErrorMode as ErrorMode>::Branch<
-    T,
-    <<T as ClosedProxy>::Constraint as Constraint>::Error,
->;
-
-//#[cfg(not(all(nightly, feature = "unstable")))]
-//pub type TryResult<T, E> = Result<T, E>;
-//#[cfg(all(nightly, feature = "unstable"))]
-//pub type TryResult<T, E> = ConstraintResult<T, E>;
+pub type PrimitiveBranch<T> =
+    <Mode<T> as ErrorMode>::Branch<<T as ClosedProxy>::Primitive, Error<T>>;
+pub type ProxyBranch<T> = <Mode<T> as ErrorMode>::Branch<T, Error<T>>;
 
 pub trait ErrorMode {
     type Branch<T, E>;
 
-    fn branch<T, E>(result: Result<T, E>) -> Self::Branch<T, E>
+    fn from_output<T, E>(output: T) -> Self::Branch<T, E>;
+
+    fn from_residual<T, E>(residual: E) -> Self::Branch<T, E>
     where
         E: Debug;
 }
@@ -34,14 +26,15 @@ pub trait ErrorMode {
 impl ErrorMode for Infallible {
     type Branch<T, E> = T;
 
-    fn branch<T, E>(result: Result<T, E>) -> Self::Branch<T, E>
+    fn from_output<T, E>(output: T) -> Self::Branch<T, E> {
+        output
+    }
+
+    fn from_residual<T, E>(_residual: E) -> Self::Branch<T, E>
     where
         E: Debug,
     {
-        match result {
-            Ok(inner) => inner,
-            _ => unreachable!(),
-        }
+        unreachable!()
     }
 }
 
@@ -63,11 +56,15 @@ pub enum Assert {}
 impl ErrorMode for Assert {
     type Branch<T, E> = T;
 
-    fn branch<T, E>(result: Result<T, E>) -> Self::Branch<T, E>
+    fn from_output<T, E>(output: T) -> Self::Branch<T, E> {
+        output
+    }
+
+    fn from_residual<T, E>(residual: E) -> Self::Branch<T, E>
     where
         E: Debug,
     {
-        result.expect_constrained()
+        Err(residual).expect_constrained()
     }
 }
 
@@ -76,11 +73,15 @@ pub enum TryOption {}
 impl ErrorMode for TryOption {
     type Branch<T, E> = Option<T>;
 
-    fn branch<T, E>(result: Result<T, E>) -> Self::Branch<T, E>
+    fn from_output<T, E>(output: T) -> Self::Branch<T, E> {
+        Some(output)
+    }
+
+    fn from_residual<T, E>(_residual: E) -> Self::Branch<T, E>
     where
         E: Debug,
     {
-        result.ok()
+        None
     }
 }
 
@@ -89,13 +90,19 @@ pub enum TryResult {}
 impl ErrorMode for TryResult {
     type Branch<T, E> = Result<T, E>;
 
-    fn branch<T, E>(result: Result<T, E>) -> Self::Branch<T, E>
+    fn from_output<T, E>(output: T) -> Self::Branch<T, E> {
+        Ok(output)
+    }
+
+    fn from_residual<T, E>(residual: E) -> Self::Branch<T, E>
     where
         E: Debug,
     {
-        result
+        Err(residual)
     }
 }
+
+// --- --- ---
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConstraintResult<T, E> {

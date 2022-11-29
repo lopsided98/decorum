@@ -65,7 +65,7 @@
 use core::cmp::Ordering;
 
 use crate::constraint::Constraint;
-use crate::error::Assert;
+use crate::error::NonResidual;
 use crate::proxy::Proxy;
 use crate::{Float, Nan, Primitive, ToCanonicalBits};
 
@@ -276,10 +276,11 @@ where
 // Note that it is not necessary for `NaN` to be a member of the constraint.
 // This implementation explicitly detects `NaN`s and emits `NaN` as the
 // maximum and minimum (it does not use `FloatOrd`).
-impl<T, P> IntrinsicOrd for Proxy<T, P, Assert>
+impl<T, P> IntrinsicOrd for Proxy<T, P>
 where
     T: Float + IntrinsicOrd + Primitive,
     P: Constraint,
+    P::ErrorMode: NonResidual<Self>,
 {
     fn is_undefined(&self) -> bool {
         self.into_inner().is_nan()
