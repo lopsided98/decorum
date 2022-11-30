@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::convert::Infallible;
 use core::fmt::Debug;
 #[cfg(all(nightly, feature = "unstable"))]
@@ -6,8 +7,20 @@ use core::ops::{ControlFlow, FromResidual, Try};
 use crate::constraint::ExpectConstrained as _;
 use crate::proxy::{ClosedProxy, ErrorOf};
 
-pub use ConstraintResult::Err as FloatErr;
-pub use ConstraintResult::Ok as FloatOk;
+pub use Expression::Defined;
+pub use Expression::Undefined;
+
+#[macro_export]
+macro_rules! expression {
+    ($x:expr) => {
+        match $x {
+            Expression::Defined(inner) => inner,
+            _ => {
+                return $x;
+            }
+        }
+    };
+}
 
 pub trait ErrorMode {
     type Branch<T, E>;
@@ -70,6 +83,23 @@ impl ErrorMode for Assert {
     }
 }
 
+pub enum TryExpression {}
+
+impl ErrorMode for TryExpression {
+    type Branch<T, E> = Expression<T, E>;
+
+    fn from_output<T, E>(output: T) -> Self::Branch<T, E> {
+        Defined(output)
+    }
+
+    fn from_residual<T, E>(residual: E) -> Self::Branch<T, E>
+    where
+        E: Debug,
+    {
+        Undefined(residual)
+    }
+}
+
 pub enum TryOption {}
 
 impl ErrorMode for TryOption {
@@ -104,55 +134,120 @@ impl ErrorMode for TryResult {
     }
 }
 
-// --- --- ---
-
 #[derive(Clone, Copy, Debug)]
-pub enum ConstraintResult<T, E> {
-    Ok(T),
-    Err(E),
+pub enum Expression<T, E = ()> {
+    Defined(T),
+    Undefined(E),
 }
 
-impl<T, E> From<Result<T, E>> for ConstraintResult<T, E> {
-    fn from(result: Result<T, E>) -> Self {
-        match result {
-            Ok(output) => FloatOk(output),
-            Err(error) => FloatErr(error),
+impl<T, E> Expression<T, E> {
+    pub fn unwrap(self) -> T {
+        match self {
+            Defined(defined) => defined,
+            _ => panic!(),
+        }
+    }
+
+    pub fn map<U, F>(self, mut f: F) -> Expression<U, E>
+    where
+        F: FnMut(T) -> U,
+    {
+        match self {
+            Defined(defined) => Defined(f(defined)),
+            Undefined(undefined) => Undefined(undefined),
+        }
+    }
+
+    pub fn and_then<U, F>(self, mut f: F) -> Expression<U, E>
+    where
+        F: FnMut(T) -> Expression<U, E>,
+    {
+        match self {
+            Defined(defined) => f(defined),
+            Undefined(undefined) => Undefined(undefined),
+        }
+    }
+
+    pub fn defined(self) -> Option<T> {
+        match self {
+            Defined(defined) => Some(defined),
+            _ => None,
+        }
+    }
+
+    pub fn undefined(self) -> Option<E> {
+        match self {
+            Undefined(undefined) => Some(undefined),
+            _ => None,
         }
     }
 }
 
-impl<T, E> From<ConstraintResult<T, E>> for Result<T, E> {
-    fn from(result: ConstraintResult<T, E>) -> Self {
+impl<T, E> From<Result<T, E>> for Expression<T, E> {
+    fn from(result: Result<T, E>) -> Self {
         match result {
-            FloatOk(output) => Ok(output),
-            FloatErr(error) => Err(error),
+            Ok(output) => Defined(output),
+            Err(error) => Undefined(error),
+        }
+    }
+}
+
+impl<T, E> From<Expression<T, E>> for Result<T, E> {
+    fn from(result: Expression<T, E>) -> Self {
+        match result {
+            Defined(defined) => Ok(defined),
+            Undefined(undefined) => Err(undefined),
         }
     }
 }
 
 #[cfg(all(nightly, feature = "unstable"))]
-impl<T, E> FromResidual for ConstraintResult<T, E> {
+impl<T, E> FromResidual for Expression<T, E> {
     fn from_residual(error: Result<Infallible, E>) -> Self {
         match error {
-            Err(error) => FloatErr(error),
+            Err(error) => Undefined(error),
             _ => unreachable!(),
         }
     }
 }
 
+impl<T, E> PartialEq for Expression<T, E>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Defined(ref left), Defined(ref right)) => left.eq(right),
+            _ => false,
+        }
+    }
+}
+
+impl<T, E> PartialOrd for Expression<T, E>
+where
+    T: PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Defined(ref left), Defined(ref right)) => left.partial_cmp(right),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(all(nightly, feature = "unstable"))]
-impl<T, E> Try for ConstraintResult<T, E> {
+impl<T, E> Try for Expression<T, E> {
     type Output = T;
     type Residual = Result<Infallible, E>;
 
     fn from_output(output: T) -> Self {
-        FloatOk(output)
+        Defined(output)
     }
 
     fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
         match self {
-            FloatOk(output) => ControlFlow::Continue(output),
-            FloatErr(error) => ControlFlow::Break(Err(error)),
+            Defined(defined) => ControlFlow::Continue(defined),
+            Undefined(undefined) => ControlFlow::Break(Err(undefined)),
         }
     }
 }

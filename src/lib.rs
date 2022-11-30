@@ -98,11 +98,14 @@ pub(crate) use num_traits::real::Real as ForeignReal;
 pub(crate) use num_traits::Float as ForeignFloat;
 
 use crate::cmp::IntrinsicOrd;
-use crate::constraint::{FiniteConstraint, NotNanConstraint, UnitConstraint};
+use crate::constraint::{Constraint, FiniteConstraint, NotNanConstraint, UnitConstraint};
+use crate::proxy::{ErrorOf, ExpressionOf};
 
 pub use crate::constraint::ConstraintViolation;
-pub use crate::error::{Assert, ConstraintResult, TryOption, TryResult};
+pub use crate::error::{Assert, Expression, TryExpression, TryOption, TryResult};
 pub use crate::proxy::Proxy;
+
+pub use Expression::{Defined, Undefined};
 
 /// Floating-point representation with total ordering.
 pub type Total<T> = Proxy<T, UnitConstraint>;
@@ -189,7 +192,7 @@ where
 }
 
 /// Floating-point representations that expose infinities.
-pub trait Infinite: Encoding {
+pub trait Infinite: Copy {
     const INFINITY: Self;
     const NEG_INFINITY: Self;
 
@@ -197,8 +200,33 @@ pub trait Infinite: Encoding {
     fn is_finite(self) -> bool;
 }
 
+impl<T, P> Infinite for ExpressionOf<Proxy<T, P>>
+where
+    ErrorOf<Proxy<T, P>>: Copy,
+    Proxy<T, P>: Infinite,
+    T: Float + Primitive,
+    P: Constraint<ErrorMode = TryExpression>,
+{
+    const INFINITY: Self = Defined(Infinite::INFINITY);
+    const NEG_INFINITY: Self = Defined(Infinite::NEG_INFINITY);
+
+    fn is_infinite(self) -> bool {
+        match self {
+            Defined(defined) => defined.is_infinite(),
+            _ => false,
+        }
+    }
+
+    fn is_finite(self) -> bool {
+        match self {
+            Defined(defined) => defined.is_finite(),
+            _ => false,
+        }
+    }
+}
+
 /// Floating-point representations that expose `NaN`s.
-pub trait Nan: Encoding {
+pub trait Nan: Copy {
     /// A representation of `NaN`.
     ///
     /// For primitive floating-point types, `NaN` is incomparable. Therefore,
@@ -320,6 +348,7 @@ pub trait Real:
     + Div<Output = Self::Branch>
     + Mul<Output = Self::Branch>
     + Neg<Output = Self>
+    + PartialEq
     + PartialOrd
     + Rem<Output = Self::Branch>
     + Sub<Output = Self::Branch>
@@ -436,6 +465,266 @@ pub trait Real:
     #[cfg(feature = "std")]
     fn atanh(self) -> Self::Branch; // Undefined or infinity.
 }
+
+impl<T, P> Real for ExpressionOf<Proxy<T, P>>
+where
+    ErrorOf<Proxy<T, P>>: Copy,
+    T: Float + Primitive,
+    P: Constraint<ErrorMode = TryExpression>,
+{
+    type Branch = Self;
+
+    const ZERO: Self = Defined(Real::ZERO);
+    const ONE: Self = Defined(Real::ONE);
+    const E: Self = Defined(Real::E);
+    const PI: Self = Defined(Real::PI);
+    const FRAC_1_PI: Self = Defined(Real::FRAC_1_PI);
+    const FRAC_2_PI: Self = Defined(Real::FRAC_2_PI);
+    const FRAC_2_SQRT_PI: Self = Defined(Real::FRAC_2_SQRT_PI);
+    const FRAC_PI_2: Self = Defined(Real::FRAC_PI_2);
+    const FRAC_PI_3: Self = Defined(Real::FRAC_PI_3);
+    const FRAC_PI_4: Self = Defined(Real::FRAC_PI_4);
+    const FRAC_PI_6: Self = Defined(Real::FRAC_PI_6);
+    const FRAC_PI_8: Self = Defined(Real::FRAC_PI_8);
+    const SQRT_2: Self = Defined(Real::SQRT_2);
+    const FRAC_1_SQRT_2: Self = Defined(Real::FRAC_1_SQRT_2);
+    const LN_2: Self = Defined(Real::LN_2);
+    const LN_10: Self = Defined(Real::LN_10);
+    const LOG2_E: Self = Defined(Real::LOG2_E);
+    const LOG10_E: Self = Defined(Real::LOG10_E);
+
+    fn is_zero(self) -> bool {
+        match self.defined() {
+            Some(defined) => defined.is_zero(),
+            _ => false,
+        }
+    }
+
+    fn is_one(self) -> bool {
+        match self.defined() {
+            Some(defined) => defined.is_one(),
+            _ => false,
+        }
+    }
+
+    fn is_positive(self) -> bool {
+        match self.defined() {
+            Some(defined) => defined.is_positive(),
+            _ => false,
+        }
+    }
+
+    fn is_negative(self) -> bool {
+        match self.defined() {
+            Some(defined) => defined.is_negative(),
+            _ => false,
+        }
+    }
+
+    #[cfg(feature = "std")]
+    fn abs(self) -> Self {
+        self.map(Real::abs)
+    }
+
+    #[cfg(feature = "std")]
+    fn signum(self) -> Self {
+        self.map(Real::signum)
+    }
+
+    fn floor(self) -> Self {
+        self.map(Real::floor)
+    }
+
+    fn ceil(self) -> Self {
+        self.map(Real::ceil)
+    }
+
+    fn round(self) -> Self {
+        self.map(Real::round)
+    }
+
+    fn trunc(self) -> Self {
+        self.map(Real::trunc)
+    }
+
+    fn fract(self) -> Self {
+        self.map(Real::fract)
+    }
+
+    fn recip(self) -> Self::Branch {
+        self.and_then(Real::recip)
+    }
+
+    #[cfg(feature = "std")]
+    fn mul_add(self, a: Self, b: Self) -> Self::Branch {
+        Real::mul_add(expression!(self), expression!(a), expression!(b))
+    }
+
+    #[cfg(feature = "std")]
+    fn div_euclid(self, n: Self) -> Self::Branch {
+        Real::div_euclid(expression!(self), expression!(n))
+    }
+
+    #[cfg(feature = "std")]
+    fn rem_euclid(self, n: Self) -> Self::Branch {
+        Real::rem_euclid(expression!(self), expression!(n))
+    }
+
+    #[cfg(feature = "std")]
+    fn powi(self, n: i32) -> Self::Branch {
+        self.and_then(|defined| Real::powi(defined, n))
+    }
+
+    #[cfg(feature = "std")]
+    fn powf(self, n: Self) -> Self::Branch {
+        Real::powf(expression!(self), expression!(n))
+    }
+
+    #[cfg(feature = "std")]
+    fn sqrt(self) -> Self::Branch {
+        self.and_then(Real::sqrt)
+    }
+
+    #[cfg(feature = "std")]
+    fn cbrt(self) -> Self {
+        self.map(Real::cbrt)
+    }
+
+    #[cfg(feature = "std")]
+    fn exp(self) -> Self::Branch {
+        self.and_then(Real::exp)
+    }
+
+    #[cfg(feature = "std")]
+    fn exp2(self) -> Self::Branch {
+        self.and_then(Real::exp2)
+    }
+
+    #[cfg(feature = "std")]
+    fn exp_m1(self) -> Self::Branch {
+        self.and_then(Real::exp_m1)
+    }
+
+    #[cfg(feature = "std")]
+    fn log(self, base: Self) -> Self {
+        Defined(Real::log(expression!(self), expression!(base)))
+    }
+
+    #[cfg(feature = "std")]
+    fn ln(self) -> Self {
+        self.map(Real::ln)
+    }
+
+    #[cfg(feature = "std")]
+    fn log2(self) -> Self {
+        self.map(Real::log2)
+    }
+
+    #[cfg(feature = "std")]
+    fn log10(self) -> Self {
+        self.map(Real::log10)
+    }
+
+    #[cfg(feature = "std")]
+    fn ln_1p(self) -> Self {
+        self.map(Real::ln_1p)
+    }
+
+    #[cfg(feature = "std")]
+    fn to_degrees(self) -> Self::Branch {
+        self.and_then(Real::to_degrees)
+    }
+
+    #[cfg(feature = "std")]
+    fn to_radians(self) -> Self {
+        self.map(Real::to_radians)
+    }
+
+    #[cfg(feature = "std")]
+    fn hypot(self, other: Self) -> Self::Branch {
+        Real::hypot(expression!(self), expression!(other))
+    }
+
+    #[cfg(feature = "std")]
+    fn sin(self) -> Self {
+        self.map(Real::sin)
+    }
+
+    #[cfg(feature = "std")]
+    fn cos(self) -> Self {
+        self.map(Real::cos)
+    }
+
+    #[cfg(feature = "std")]
+    fn tan(self) -> Self::Branch {
+        self.and_then(Real::tan)
+    }
+
+    #[cfg(feature = "std")]
+    fn asin(self) -> Self::Branch {
+        self.and_then(Real::asin)
+    }
+
+    #[cfg(feature = "std")]
+    fn acos(self) -> Self::Branch {
+        self.and_then(Real::acos)
+    }
+
+    #[cfg(feature = "std")]
+    fn atan(self) -> Self {
+        self.map(Real::atan)
+    }
+
+    #[cfg(feature = "std")]
+    fn atan2(self, other: Self) -> Self {
+        Defined(Real::atan2(expression!(self), expression!(other)))
+    }
+
+    #[cfg(feature = "std")]
+    fn sin_cos(self) -> (Self, Self) {
+        match self {
+            Defined(defined) => {
+                let (sin, cos) = defined.sin_cos();
+                (Defined(sin), Defined(cos))
+            }
+            _ => (self, self),
+        }
+    }
+
+    #[cfg(feature = "std")]
+    fn sinh(self) -> Self {
+        self.map(Real::sinh)
+    }
+
+    #[cfg(feature = "std")]
+    fn cosh(self) -> Self {
+        self.map(Real::cosh)
+    }
+
+    #[cfg(feature = "std")]
+    fn tanh(self) -> Self {
+        self.map(Real::tanh)
+    }
+
+    #[cfg(feature = "std")]
+    fn asinh(self) -> Self::Branch {
+        self.and_then(Real::asinh)
+    }
+
+    #[cfg(feature = "std")]
+    fn acosh(self) -> Self::Branch {
+        self.and_then(Real::acosh)
+    }
+
+    #[cfg(feature = "std")]
+    fn atanh(self) -> Self::Branch {
+        self.and_then(Real::atanh)
+    }
+}
+
+pub trait IntrinsicReal: IntrinsicOrd + Real<Branch = Self> {}
+
+impl<T> IntrinsicReal for T where T: IntrinsicOrd + Real<Branch = T> {}
 
 /// Floating-point representations.
 ///

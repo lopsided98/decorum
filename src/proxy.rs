@@ -26,19 +26,20 @@ use crate::constraint::{
     Constraint, ConstraintViolation, ExpectConstrained, InfinitySet, Member, NanSet, SubsetOf,
     SupersetOf,
 };
-use crate::error::{ErrorMode, NonResidual};
+use crate::error::{ErrorMode, Expression, NonResidual, TryExpression};
 use crate::hash::FloatHash;
 #[cfg(feature = "std")]
 use crate::ForeignReal;
 use crate::{
-    Encoding, Finite, Float, ForeignFloat, Infinite, Nan, NotNan, Primitive, Real, ToCanonicalBits,
-    Total,
+    expression, Encoding, Finite, Float, ForeignFloat, Infinite, Nan, NotNan, Primitive, Real,
+    ToCanonicalBits, Total,
 };
 
 pub type BranchOf<T> = <ModeOf<T> as ErrorMode>::Branch<T, ErrorOf<T>>;
 pub type ConstraintOf<T> = <T as ClosedProxy>::Constraint;
 pub type ModeOf<T> = <ConstraintOf<T> as Constraint>::ErrorMode;
 pub type ErrorOf<T> = <ConstraintOf<T> as Constraint>::Error;
+pub type ExpressionOf<T> = Expression<T, ErrorOf<T>>;
 
 /// A `Proxy` type that is closed over its primitive floating-point type and
 /// constraint.
@@ -467,6 +468,18 @@ where
     fn add(self, other: T) -> Self::Output {
         self.map(|inner| inner + other)
     }
+}
+
+// TODO:
+#[cfg(all(nightly, feature = "unstable"))]
+fn _sanity() -> ExpressionOf<Finite<f64, TryExpression>> {
+    //fn _sanity() -> Result<Finite<f64, TryExpression>, impl core::fmt::Debug> {
+    type R64 = Finite<f64, TryExpression>;
+
+    let a = R64::new(1.0);
+    let b = R64::new(0.0);
+    let c = a * b?;
+    (c + R64::ZERO).into()
 }
 
 // TODO:
@@ -1281,6 +1294,18 @@ where
     }
 }
 
+impl<T, P> Neg for ExpressionOf<Proxy<T, P>>
+where
+    T: Float + Primitive,
+    P: Constraint<ErrorMode = TryExpression>,
+{
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        self.map(|defined| -defined)
+    }
+}
+
 impl<T, P> Num for Proxy<T, P>
 where
     T: Float + Primitive + Num,
@@ -1922,6 +1947,63 @@ where
         self.into_inner().is_zero()
     }
 }
+
+macro_rules! impl_binary_expression {
+    (operation => $trait:ident :: $method:ident, |$left:ident, $right:ident| $f:block) => {
+        impl<T, P> $trait<ExpressionOf<Self>> for Proxy<T, P>
+        where
+            T: Float + Primitive,
+            P: Constraint<ErrorMode = TryExpression>,
+        {
+            type Output = ExpressionOf<Self>;
+
+            fn $method(self, other: ExpressionOf<Self>) -> Self::Output {
+                let $left = self;
+                let $right = expression!(other);
+                $f
+            }
+        }
+
+        impl<T, P> $trait<Proxy<T, P>> for ExpressionOf<Proxy<T, P>>
+        where
+            T: Float + Primitive,
+            P: Constraint<ErrorMode = TryExpression>,
+        {
+            type Output = Self;
+
+            fn $method(self, other: Proxy<T, P>) -> Self::Output {
+                expression!(self).zip_map(other, Add::add)
+            }
+        }
+
+        impl<T, P> $trait<ExpressionOf<Proxy<T, P>>> for ExpressionOf<Proxy<T, P>>
+        where
+            T: Float + Primitive,
+            P: Constraint<ErrorMode = TryExpression>,
+        {
+            type Output = Self;
+
+            fn $method(self, other: Self) -> Self::Output {
+                expression!(self).zip_map(expression!(other), Add::add)
+            }
+        }
+    };
+}
+impl_binary_expression!(operation => Add::add, |left, right| {
+    left.zip_map(right, Add::add)
+});
+impl_binary_expression!(operation => Div::div, |left, right| {
+    left.zip_map(right, Div::div)
+});
+impl_binary_expression!(operation => Mul::mul, |left, right| {
+    left.zip_map(right, Mul::mul)
+});
+impl_binary_expression!(operation => Rem::rem, |left, right| {
+    left.zip_map(right, Rem::rem)
+});
+impl_binary_expression!(operation => Sub::sub, |left, right| {
+    left.zip_map(right, Sub::sub)
+});
 
 /// Implements the `Real` trait from
 /// [`num-traits`](https://crates.io/crates/num-traits) in terms of Decorum's

@@ -278,7 +278,7 @@ where
 // maximum and minimum (it does not use `FloatOrd`).
 impl<T, P> IntrinsicOrd for Proxy<T, P>
 where
-    T: Float + IntrinsicOrd + Primitive,
+    T: Float + Primitive,
     P: Constraint,
     P::ErrorMode: NonResidual<Self>,
 {
