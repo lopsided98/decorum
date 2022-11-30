@@ -142,7 +142,7 @@ pub struct Proxy<T, P> {
 }
 
 impl<T, P> Proxy<T, P> {
-    const fn unchecked(inner: T) -> Self {
+    pub(crate) const fn unchecked(inner: T) -> Self {
         Proxy {
             inner,
             phantom: PhantomData,
@@ -381,24 +381,6 @@ where
     }
 }
 
-// TODO:
-//impl<T, P, M> Proxy<T, P>
-//where
-//    T: Float + Primitive,
-//    P: Constraint<ErrorMode = M>,
-//{
-//    fn into_error_mode<N>(self) -> Proxy<T, P, N>
-//    where
-//        N: ErrorMode,
-//    {
-//        let Proxy { inner, .. } = self;
-//        Proxy {
-//            inner,
-//            phantom: PhantomData,
-//        }
-//    }
-//}
-
 impl<T> Total<T>
 where
     T: Float + Primitive,
@@ -472,14 +454,27 @@ where
 
 // TODO:
 #[cfg(all(nightly, feature = "unstable"))]
+//fn _sanity() -> Result<Finite<f64, TryExpression>, impl core::fmt::Debug> {
 fn _sanity() -> ExpressionOf<Finite<f64, TryExpression>> {
-    //fn _sanity() -> Result<Finite<f64, TryExpression>, impl core::fmt::Debug> {
+    use crate::ClosedReal;
+    use std::convert::TryInto;
+
     type R64 = Finite<f64, TryExpression>;
+    type Expr<T, P> = Expression<Proxy<T, P>, ErrorOf<Proxy<T, P>>>;
+
+    fn f<T, P>(x: impl Into<Expr<T, P>>, y: impl Into<Expr<T, P>>) -> Expr<T, P>
+    where
+        T: Float + Primitive,
+        P: Constraint<ErrorMode = TryExpression>,
+    {
+        x.into() + y.into()
+    }
 
     let a = R64::new(1.0);
     let b = R64::new(0.0);
-    let c = a * b?;
-    (c + R64::ZERO).into()
+    let c = f(a, b);
+    let d = cmp::max_or_undefined(c, b + R64::new(3.1459));
+    d - R64::ZERO
 }
 
 // TODO:

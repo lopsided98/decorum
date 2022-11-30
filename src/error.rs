@@ -4,8 +4,9 @@ use core::fmt::Debug;
 #[cfg(all(nightly, feature = "unstable"))]
 use core::ops::{ControlFlow, FromResidual, Try};
 
-use crate::constraint::ExpectConstrained as _;
-use crate::proxy::{ClosedProxy, ErrorOf};
+use crate::constraint::{Constraint, ExpectConstrained as _};
+use crate::proxy::{ClosedProxy, ErrorOf, Proxy};
+use crate::{Float, Primitive};
 
 pub use Expression::Defined;
 pub use Expression::Undefined;
@@ -180,6 +181,16 @@ impl<T, E> Expression<T, E> {
             Undefined(undefined) => Some(undefined),
             _ => None,
         }
+    }
+}
+
+impl<T, P> From<Proxy<T, P>> for Expression<Proxy<T, P>, ErrorOf<Proxy<T, P>>>
+where
+    T: Float + Primitive,
+    P: Constraint,
+{
+    fn from(proxy: Proxy<T, P>) -> Self {
+        Defined(proxy)
     }
 }
 

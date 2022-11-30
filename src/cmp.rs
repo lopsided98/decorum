@@ -65,7 +65,7 @@
 use core::cmp::Ordering;
 
 use crate::constraint::Constraint;
-use crate::error::NonResidual;
+use crate::error::{Defined, Expression, Undefined};
 use crate::proxy::Proxy;
 use crate::{Float, Nan, Primitive, ToCanonicalBits};
 
@@ -176,6 +176,10 @@ where
     }
 }
 
+pub trait UndefinedError {
+    fn undefined() -> Self;
+}
+
 /// Pairwise ordering of types with intrinsic representations for undefined
 /// comparisons (or total ordering).
 ///
@@ -204,7 +208,7 @@ where
 /// [`Option`]: core::option::Option
 /// [`Option<Ordering>`]: core::cmp::Ordering
 /// [`PartialOrd`]: core::cmp::PartialOrd
-pub trait IntrinsicOrd: Copy + PartialOrd + Sized {
+pub trait IntrinsicOrd: PartialOrd + Sized {
     /// Returns `true` if a value encodes _undefined_, otherwise `false`.
     ///
     /// Prefer this predicate over direct comparisons. For floating-point
@@ -251,110 +255,157 @@ pub trait IntrinsicOrd: Copy + PartialOrd + Sized {
     }
 }
 
+impl<T, E> IntrinsicOrd for Expression<T, E>
+where
+    T: Clone + IntrinsicOrd,
+    E: UndefinedError,
+{
+    fn is_undefined(&self) -> bool {
+        matches!(self, Undefined(_))
+    }
+
+    fn min_max_or_undefined(&self, other: &Self) -> (Self, Self) {
+        let undefined = || (Undefined(E::undefined()), Undefined(E::undefined()));
+        match (self, other) {
+            (Defined(ref a), Defined(ref b)) => {
+                let (min, max) = a.min_max_or_undefined(b);
+                if min.is_undefined() {
+                    undefined()
+                }
+                else {
+                    (Defined(min.clone()), Defined(max.clone()))
+                }
+            }
+            _ => undefined(),
+        }
+    }
+}
+
 impl<T> IntrinsicOrd for Option<T>
 where
-    T: Copy + PartialOrd,
+    T: Clone + IntrinsicOrd,
 {
     fn is_undefined(&self) -> bool {
         self.is_none()
     }
 
     fn min_max_or_undefined(&self, other: &Self) -> (Self, Self) {
-        match (self.as_ref(), other.as_ref()) {
-            (Some(a), Some(b)) => match a.partial_cmp(b) {
-                Some(ordering) => match ordering {
-                    Ordering::Less | Ordering::Equal => (Some(*a), Some(*b)),
-                    _ => (Some(*b), Some(*a)),
-                },
-                _ => (None, None),
-            },
-            _ => (None, None),
+        let undefined = (None, None);
+        match (self, other) {
+            (Some(ref a), Some(ref b)) => {
+                let (min, max) = a.min_max_or_undefined(b);
+                if min.is_undefined() {
+                    undefined
+                }
+                else {
+                    (Some(min.clone()), Some(max.clone()))
+                }
+            }
+            _ => undefined,
         }
     }
 }
 
-// Note that it is not necessary for `NaN` to be a member of the constraint.
-// This implementation explicitly detects `NaN`s and emits `NaN` as the
-// maximum and minimum (it does not use `FloatOrd`).
 impl<T, P> IntrinsicOrd for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
 {
     fn is_undefined(&self) -> bool {
         self.into_inner().is_nan()
     }
 
     fn min_max_or_undefined(&self, other: &Self) -> (Self, Self) {
-        // This function operates on primitive floating-point values. This
-        // avoids the need for implementations for each combination of proxy and
-        // constraint (proxy types do not always implement `Nan`, but primitive
-        // types do).
         let a = self.into_inner();
         let b = other.into_inner();
         let (min, max) = a.min_max_or_undefined(&b);
-        // Both `min` and `max` are `NaN` if `a` and `b` are incomparable.
+        // Both `min` and `max` are `NaN` if `a` and `b` are
+        // incomparable.
         if min.is_nan() {
-            let nan = Proxy::assert(T::NAN);
+            // This relies on the correctness of the implementation of
+            // `IntrinsicOrd` for `T`. For constrained (and nonresidual) types
+            // like `NotNan` and `Finite`, `a` and `b` must not be undefined
+            // (`NaN`) and so `min` and `max` also must not be undefined.
+            let nan = Proxy::<_, P>::unchecked(T::NAN);
             (nan, nan)
         }
         else {
-            (Proxy::assert(min), Proxy::assert(max))
+            (Proxy::<_, P>::unchecked(min), Proxy::<_, P>::unchecked(max))
+        }
+    }
+}
+
+impl<T, E> IntrinsicOrd for Result<T, E>
+where
+    Self: PartialOrd,
+    T: Clone + IntrinsicOrd,
+    E: UndefinedError,
+{
+    fn is_undefined(&self) -> bool {
+        self.is_err()
+    }
+
+    fn min_max_or_undefined(&self, other: &Self) -> (Self, Self) {
+        let undefined = || (Err(E::undefined()), Err(E::undefined()));
+        match (self, other) {
+            (Ok(ref a), Ok(ref b)) => {
+                let (min, max) = a.min_max_or_undefined(b);
+                if min.is_undefined() {
+                    undefined()
+                }
+                else {
+                    (Ok(min.clone()), Ok(max.clone()))
+                }
+            }
+            _ => undefined(),
         }
     }
 }
 
 macro_rules! impl_intrinsic_ord {
-    (no_nan_total => $t:ty) => {
+    (total => $t:ty) => {
         impl IntrinsicOrd for $t {
             fn is_undefined(&self) -> bool {
                 false
             }
 
             fn min_max_or_undefined(&self, other: &Self) -> (Self, Self) {
-                match self.partial_cmp(other) {
-                    Some(ordering) => match ordering {
-                        Ordering::Less | Ordering::Equal => (*self, *other),
-                        _ => (*other, *self),
-                    },
-                    _ => unreachable!(),
-                }
+                let (min, max) = partial_min_max(self, other).unwrap();
+                (*min, *max)
             }
         }
     };
-    (nan_partial => $t:ty) => {
+    (partial_nan => $t:ty) => {
         impl IntrinsicOrd for $t {
             fn is_undefined(&self) -> bool {
                 self.is_nan()
             }
 
             fn min_max_or_undefined(&self, other: &Self) -> (Self, Self) {
-                match self.partial_cmp(other) {
-                    Some(ordering) => match ordering {
-                        Ordering::Less | Ordering::Equal => (*self, *other),
-                        _ => (*other, *self),
-                    },
+                match partial_min_max(self, other) {
+                    // `NaN`s cannot be compared, so `min` and `max` cannot be
+                    // undefined here.
+                    Some((min, max)) => (*min, *max),
                     _ => (Nan::NAN, Nan::NAN),
                 }
             }
         }
     };
 }
-impl_intrinsic_ord!(no_nan_total => isize);
-impl_intrinsic_ord!(no_nan_total => i8);
-impl_intrinsic_ord!(no_nan_total => i16);
-impl_intrinsic_ord!(no_nan_total => i32);
-impl_intrinsic_ord!(no_nan_total => i64);
-impl_intrinsic_ord!(no_nan_total => i128);
-impl_intrinsic_ord!(no_nan_total => usize);
-impl_intrinsic_ord!(no_nan_total => u8);
-impl_intrinsic_ord!(no_nan_total => u16);
-impl_intrinsic_ord!(no_nan_total => u32);
-impl_intrinsic_ord!(no_nan_total => u64);
-impl_intrinsic_ord!(no_nan_total => u128);
-impl_intrinsic_ord!(nan_partial => f32);
-impl_intrinsic_ord!(nan_partial => f64);
+impl_intrinsic_ord!(total => isize);
+impl_intrinsic_ord!(total => i8);
+impl_intrinsic_ord!(total => i16);
+impl_intrinsic_ord!(total => i32);
+impl_intrinsic_ord!(total => i64);
+impl_intrinsic_ord!(total => i128);
+impl_intrinsic_ord!(total => usize);
+impl_intrinsic_ord!(total => u8);
+impl_intrinsic_ord!(total => u16);
+impl_intrinsic_ord!(total => u32);
+impl_intrinsic_ord!(total => u64);
+impl_intrinsic_ord!(total => u128);
+impl_intrinsic_ord!(partial_nan => f32);
+impl_intrinsic_ord!(partial_nan => f64);
 
 /// Partial maximum of types with intrinsic representations for undefined.
 ///
@@ -378,6 +429,19 @@ where
     T: IntrinsicOrd,
 {
     a.min_or_undefined(&b)
+}
+
+fn partial_min_max<'t, T>(a: &'t T, b: &'t T) -> Option<(&'t T, &'t T)>
+where
+    T: PartialOrd,
+{
+    match a.partial_cmp(b) {
+        Some(ordering) => Some(match ordering {
+            Ordering::Less | Ordering::Equal => (a, b),
+            _ => (b, a),
+        }),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

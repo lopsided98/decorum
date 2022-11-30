@@ -97,7 +97,7 @@ pub(crate) use num_traits::real::Real as ForeignReal;
 #[cfg(feature = "std")]
 pub(crate) use num_traits::Float as ForeignFloat;
 
-use crate::cmp::IntrinsicOrd;
+use crate::cmp::{IntrinsicOrd, UndefinedError};
 use crate::constraint::{Constraint, FiniteConstraint, NotNanConstraint, UnitConstraint};
 use crate::proxy::{ErrorOf, ExpressionOf};
 
@@ -346,6 +346,7 @@ pub trait Real:
     Add<Output = Self::Branch>
     + Copy
     + Div<Output = Self::Branch>
+    + IntrinsicOrd // TODO: ???
     + Mul<Output = Self::Branch>
     + Neg<Output = Self>
     + PartialEq
@@ -468,7 +469,7 @@ pub trait Real:
 
 impl<T, P> Real for ExpressionOf<Proxy<T, P>>
 where
-    ErrorOf<Proxy<T, P>>: Copy,
+    ErrorOf<Proxy<T, P>>: Copy + UndefinedError,
     T: Float + Primitive,
     P: Constraint<ErrorMode = TryExpression>,
 {
@@ -725,6 +726,18 @@ where
 pub trait IntrinsicReal: IntrinsicOrd + Real<Branch = Self> {}
 
 impl<T> IntrinsicReal for T where T: IntrinsicOrd + Real<Branch = T> {}
+
+pub trait ClosedReal: Real<Branch = <Self as ClosedReal>::ClosedBranch> {
+    type ClosedBranch: Real;
+}
+
+impl<T> ClosedReal for T
+where
+    T: Real,
+    T::Branch: Real,
+{
+    type ClosedBranch = T::Branch;
+}
 
 /// Floating-point representations.
 ///

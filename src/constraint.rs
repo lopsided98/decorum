@@ -9,6 +9,7 @@ use core::marker::PhantomData;
 #[cfg(feature = "std")]
 use thiserror::Error;
 
+use crate::cmp::UndefinedError;
 use crate::error::ErrorMode;
 use crate::{Float, Primitive};
 
@@ -25,6 +26,12 @@ pub struct ConstraintViolation;
 impl Display for ConstraintViolation {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", VIOLATION_MESSAGE)
+    }
+}
+
+impl UndefinedError for ConstraintViolation {
+    fn undefined() -> Self {
+        ConstraintViolation
     }
 }
 
