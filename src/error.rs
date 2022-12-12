@@ -23,7 +23,7 @@ macro_rules! expression {
     };
 }
 
-pub trait ErrorMode {
+pub trait Divergence {
     type Branch<T, E>;
 
     fn from_output<T, E>(output: T) -> Self::Branch<T, E>;
@@ -33,7 +33,7 @@ pub trait ErrorMode {
         E: Debug;
 }
 
-impl ErrorMode for Infallible {
+impl Divergence for Infallible {
     type Branch<T, E> = T;
 
     fn from_output<T, E>(output: T) -> Self::Branch<T, E> {
@@ -48,7 +48,7 @@ impl ErrorMode for Infallible {
     }
 }
 
-pub trait NonResidual<T>: ErrorMode<Branch<T, ErrorOf<T>> = T>
+pub trait NonResidual<T>: Divergence<Branch<T, ErrorOf<T>> = T>
 where
     T: ClosedProxy,
 {
@@ -57,11 +57,13 @@ where
 impl<T, M> NonResidual<T> for M
 where
     T: ClosedProxy,
-    M: ErrorMode<Branch<T, ErrorOf<T>> = T>,
+    M: Divergence<Branch<T, ErrorOf<T>> = T>,
 {
 }
 
 pub trait ResidualBranch {}
+
+impl<T, E> ResidualBranch for Expression<T, E> {}
 
 impl<T> ResidualBranch for Option<T> {}
 
@@ -69,7 +71,7 @@ impl<T, E> ResidualBranch for Result<T, E> {}
 
 pub enum Assert {}
 
-impl ErrorMode for Assert {
+impl Divergence for Assert {
     type Branch<T, E> = T;
 
     fn from_output<T, E>(output: T) -> Self::Branch<T, E> {
@@ -86,7 +88,7 @@ impl ErrorMode for Assert {
 
 pub enum TryExpression {}
 
-impl ErrorMode for TryExpression {
+impl Divergence for TryExpression {
     type Branch<T, E> = Expression<T, E>;
 
     fn from_output<T, E>(output: T) -> Self::Branch<T, E> {
@@ -103,7 +105,7 @@ impl ErrorMode for TryExpression {
 
 pub enum TryOption {}
 
-impl ErrorMode for TryOption {
+impl Divergence for TryOption {
     type Branch<T, E> = Option<T>;
 
     fn from_output<T, E>(output: T) -> Self::Branch<T, E> {
@@ -120,7 +122,7 @@ impl ErrorMode for TryOption {
 
 pub enum TryResult {}
 
-impl ErrorMode for TryResult {
+impl Divergence for TryResult {
     type Branch<T, E> = Result<T, E>;
 
     fn from_output<T, E>(output: T) -> Self::Branch<T, E> {

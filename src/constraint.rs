@@ -10,7 +10,7 @@ use core::marker::PhantomData;
 use thiserror::Error;
 
 use crate::cmp::UndefinedError;
-use crate::error::ErrorMode;
+use crate::error::Divergence;
 use crate::{Float, Primitive};
 
 const VIOLATION_MESSAGE: &str = "floating-point constraint violated";
@@ -77,7 +77,7 @@ impl<P, Q> SubsetOf<Q> for P where Q: SupersetOf<P> {}
 /// the constraint. Note that constraints require `Member<RealSet>`, meaning
 /// that the set of real numbers must always be supported and is implied.
 pub trait Constraint: Member<RealSet> {
-    type ErrorMode: ErrorMode;
+    type Divergence: Divergence;
     type Error: Debug;
 
     /// Determines if a primitive floating-point value satisfies the constraint.
@@ -97,14 +97,14 @@ pub trait Constraint: Member<RealSet> {
         Self::noncompliance(inner).map_or(Ok(inner), |error| Err(error))
     }
 
-    fn branch<T, U, F>(inner: T, f: F) -> <Self::ErrorMode as ErrorMode>::Branch<U, Self::Error>
+    fn branch<T, U, F>(inner: T, f: F) -> <Self::Divergence as Divergence>::Branch<U, Self::Error>
     where
         T: Float + Primitive,
         F: FnOnce(T) -> U,
     {
         match Self::noncompliance(inner) {
-            Some(error) => Self::ErrorMode::from_residual(error),
-            _ => Self::ErrorMode::from_output(f(inner)),
+            Some(error) => Self::Divergence::from_residual(error),
+            _ => Self::Divergence::from_output(f(inner)),
         }
     }
 }
@@ -113,7 +113,7 @@ pub trait Constraint: Member<RealSet> {
 pub enum UnitConstraint {}
 
 impl Constraint for UnitConstraint {
-    type ErrorMode = Infallible;
+    type Divergence = Infallible;
     type Error = Infallible;
 
     fn noncompliance<T>(_inner: T) -> Option<Self::Error>
@@ -142,9 +142,9 @@ pub struct NotNanConstraint<M> {
 
 impl<M> Constraint for NotNanConstraint<M>
 where
-    M: ErrorMode,
+    M: Divergence,
 {
-    type ErrorMode = M;
+    type Divergence = M;
     type Error = ConstraintViolation;
 
     fn noncompliance<T>(inner: T) -> Option<Self::Error>
@@ -169,9 +169,9 @@ pub struct FiniteConstraint<M> {
 
 impl<M> Constraint for FiniteConstraint<M>
 where
-    M: ErrorMode,
+    M: Divergence,
 {
-    type ErrorMode = M;
+    type Divergence = M;
     type Error = ConstraintViolation;
 
     fn noncompliance<T>(inner: T) -> Option<Self::Error>

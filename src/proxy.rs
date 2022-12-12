@@ -26,7 +26,7 @@ use crate::constraint::{
     Constraint, ConstraintViolation, ExpectConstrained, InfinitySet, Member, NanSet, SubsetOf,
     SupersetOf,
 };
-use crate::error::{ErrorMode, Expression, NonResidual, TryExpression};
+use crate::error::{Divergence, Expression, NonResidual, TryExpression};
 use crate::hash::FloatHash;
 #[cfg(feature = "std")]
 use crate::ForeignReal;
@@ -35,9 +35,9 @@ use crate::{
     ToCanonicalBits, Total,
 };
 
-pub type BranchOf<T> = <ModeOf<T> as ErrorMode>::Branch<T, ErrorOf<T>>;
+pub type BranchOf<T> = <DivergenceOf<T> as Divergence>::Branch<T, ErrorOf<T>>;
 pub type ConstraintOf<T> = <T as ClosedProxy>::Constraint;
-pub type ModeOf<T> = <ConstraintOf<T> as Constraint>::ErrorMode;
+pub type DivergenceOf<T> = <ConstraintOf<T> as Constraint>::Divergence;
 pub type ErrorOf<T> = <ConstraintOf<T> as Constraint>::Error;
 pub type ExpressionOf<T> = Expression<T, ErrorOf<T>>;
 
@@ -299,6 +299,10 @@ where
         Proxy::unchecked(self.into_inner())
     }
 
+    pub fn into_expression(self) -> ExpressionOf<Self> {
+        Expression::from(self)
+    }
+
     /// Converts a slice of primitive floating-point values into a slice of
     /// proxies.
     ///
@@ -453,31 +457,6 @@ where
 }
 
 // TODO:
-#[cfg(all(nightly, feature = "unstable"))]
-//fn _sanity() -> Result<Finite<f64, TryExpression>, impl core::fmt::Debug> {
-fn _sanity() -> ExpressionOf<Finite<f64, TryExpression>> {
-    use crate::ClosedReal;
-    use std::convert::TryInto;
-
-    type R64 = Finite<f64, TryExpression>;
-    type Expr<T, P> = Expression<Proxy<T, P>, ErrorOf<Proxy<T, P>>>;
-
-    fn f<T, P>(x: impl Into<Expr<T, P>>, y: impl Into<Expr<T, P>>) -> Expr<T, P>
-    where
-        T: Float + Primitive,
-        P: Constraint<ErrorMode = TryExpression>,
-    {
-        x.into() + y.into()
-    }
-
-    let a = R64::new(1.0);
-    let b = R64::new(0.0);
-    let c = f(a, b);
-    let d = cmp::max_or_undefined(c, b + R64::new(3.1459));
-    d - R64::ZERO
-}
-
-// TODO:
 //#[cfg(all(nightly, feature = "unstable"))]
 //impl<T, P> Add<BranchOf<Self>> for Proxy<T, P>
 //where
@@ -510,7 +489,7 @@ impl<T, P> AddAssign for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn add_assign(&mut self, other: Self) {
         *self = *self + other;
@@ -521,7 +500,7 @@ impl<T, P> AddAssign<T> for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn add_assign(&mut self, other: T) {
         *self = self.map(|inner| inner + other);
@@ -645,7 +624,7 @@ impl<T, P> DivAssign for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn div_assign(&mut self, other: Self) {
         *self = *self / other
@@ -656,7 +635,7 @@ impl<T, P> DivAssign<T> for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn div_assign(&mut self, other: T) {
         *self = self.map(|inner| inner / other);
@@ -770,7 +749,7 @@ impl<T, P> ForeignFloat for Proxy<T, P>
 where
     T: Float + IntrinsicOrd + Num + NumCast + Primitive,
     P: Constraint + Member<InfinitySet> + Member<NanSet>,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn infinity() -> Self {
         Infinite::INFINITY
@@ -1170,7 +1149,7 @@ impl<T, P> FromStr for Proxy<T, P>
 where
     T: Float + FromStr + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     type Err = <T as FromStr>::Err;
 
@@ -1247,7 +1226,7 @@ impl<T, P> MulAssign for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn mul_assign(&mut self, other: Self) {
         *self = *self * other;
@@ -1258,7 +1237,7 @@ impl<T, P> MulAssign<T> for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn mul_assign(&mut self, other: T) {
         *self = *self * other;
@@ -1292,7 +1271,7 @@ where
 impl<T, P> Neg for ExpressionOf<Proxy<T, P>>
 where
     T: Float + Primitive,
-    P: Constraint<ErrorMode = TryExpression>,
+    P: Constraint<Divergence = TryExpression>,
 {
     type Output = Self;
 
@@ -1305,7 +1284,7 @@ impl<T, P> Num for Proxy<T, P>
 where
     T: Float + Primitive + Num,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     // TODO: Differentiate between parse and contraint errors.
     type FromStrRadixErr = ();
@@ -1334,7 +1313,7 @@ impl<T, P> One for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn one() -> Self {
         Proxy::unchecked(T::ONE)
@@ -1401,7 +1380,7 @@ impl<T, P> Product for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn product<I>(input: I) -> Self
     where
@@ -1705,7 +1684,7 @@ impl<T, P> RemAssign for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn rem_assign(&mut self, other: Self) {
         *self = *self % other;
@@ -1716,7 +1695,7 @@ impl<T, P> RemAssign<T> for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn rem_assign(&mut self, other: T) {
         *self = self.map(|inner| inner % other);
@@ -1727,7 +1706,7 @@ impl<T, P> Signed for Proxy<T, P>
 where
     T: Float + Primitive + Num,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn abs(&self) -> Self {
         self.map_unchecked(Real::abs)
@@ -1791,7 +1770,7 @@ impl<T, P> SubAssign for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn sub_assign(&mut self, other: Self) {
         *self = *self - other
@@ -1802,7 +1781,7 @@ impl<T, P> SubAssign<T> for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn sub_assign(&mut self, other: T) {
         *self = self.map(|inner| inner - other)
@@ -1813,7 +1792,7 @@ impl<T, P> Sum for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn sum<I>(input: I) -> Self
     where
@@ -1932,7 +1911,7 @@ impl<T, P> Zero for Proxy<T, P>
 where
     T: Float + Primitive,
     P: Constraint,
-    P::ErrorMode: NonResidual<Self>,
+    P::Divergence: NonResidual<Self>,
 {
     fn zero() -> Self {
         Proxy::unchecked(T::ZERO)
@@ -1948,7 +1927,7 @@ macro_rules! impl_binary_expression {
         impl<T, P> $trait<ExpressionOf<Self>> for Proxy<T, P>
         where
             T: Float + Primitive,
-            P: Constraint<ErrorMode = TryExpression>,
+            P: Constraint<Divergence = TryExpression>,
         {
             type Output = ExpressionOf<Self>;
 
@@ -1962,7 +1941,7 @@ macro_rules! impl_binary_expression {
         impl<T, P> $trait<Proxy<T, P>> for ExpressionOf<Proxy<T, P>>
         where
             T: Float + Primitive,
-            P: Constraint<ErrorMode = TryExpression>,
+            P: Constraint<Divergence = TryExpression>,
         {
             type Output = Self;
 
@@ -1976,7 +1955,7 @@ macro_rules! impl_binary_expression {
         impl<T, P> $trait<ExpressionOf<Proxy<T, P>>> for ExpressionOf<Proxy<T, P>>
         where
             T: Float + Primitive,
-            P: Constraint<ErrorMode = TryExpression>,
+            P: Constraint<Divergence = TryExpression>,
         {
             type Output = Self;
 
@@ -1989,7 +1968,7 @@ macro_rules! impl_binary_expression {
 
         impl<P> $trait<ExpressionOf<Proxy<f32, P>>> for f32
         where
-            P: Constraint<ErrorMode = TryExpression>,
+            P: Constraint<Divergence = TryExpression>,
         {
             type Output = ExpressionOf<Proxy<f32, P>>;
 
@@ -2002,7 +1981,7 @@ macro_rules! impl_binary_expression {
 
         impl<P> $trait<f32> for ExpressionOf<Proxy<f32, P>>
         where
-            P: Constraint<ErrorMode = TryExpression>,
+            P: Constraint<Divergence = TryExpression>,
         {
             type Output = Self;
 
@@ -2257,7 +2236,7 @@ macro_rules! impl_try_from {
     (proxy => $p:ident, primitive => $t:ty) => {
         impl<M> TryFrom<$t> for $p<$t, M>
         where
-            M: ErrorMode,
+            M: Divergence,
         {
             type Error = ConstraintViolation;
 
@@ -2268,7 +2247,7 @@ macro_rules! impl_try_from {
 
         impl<'a, M> TryFrom<&'a $t> for &'a $p<$t, M>
         where
-            M: ErrorMode,
+            M: Divergence,
         {
             type Error = ConstraintViolation;
 
@@ -2285,7 +2264,7 @@ macro_rules! impl_try_from {
 
         impl<'a, M> TryFrom<&'a mut $t> for &'a mut $p<$t, M>
         where
-            M: ErrorMode,
+            M: Divergence,
         {
             type Error = ConstraintViolation;
 

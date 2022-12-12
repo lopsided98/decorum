@@ -205,7 +205,7 @@ where
     ErrorOf<Proxy<T, P>>: Copy,
     Proxy<T, P>: Infinite,
     T: Float + Primitive,
-    P: Constraint<ErrorMode = TryExpression>,
+    P: Constraint<Divergence = TryExpression>,
 {
     const INFINITY: Self = Defined(Infinite::INFINITY);
     const NEG_INFINITY: Self = Defined(Infinite::NEG_INFINITY);
@@ -471,7 +471,7 @@ impl<T, P> Real for ExpressionOf<Proxy<T, P>>
 where
     ErrorOf<Proxy<T, P>>: Copy + UndefinedError,
     T: Float + Primitive,
-    P: Constraint<ErrorMode = TryExpression>,
+    P: Constraint<Divergence = TryExpression>,
 {
     type Branch = Self;
 
