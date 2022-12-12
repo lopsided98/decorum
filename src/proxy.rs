@@ -1967,7 +1967,9 @@ macro_rules! impl_binary_expression {
             type Output = Self;
 
             fn $method(self, other: Proxy<T, P>) -> Self::Output {
-                expression!(self).zip_map(other, Add::add)
+                let $left = expression!(self);
+                let $right = other;
+                $f
             }
         }
 
@@ -1979,7 +1981,35 @@ macro_rules! impl_binary_expression {
             type Output = Self;
 
             fn $method(self, other: Self) -> Self::Output {
-                expression!(self).zip_map(expression!(other), Add::add)
+                let $left = expression!(self);
+                let $right = expression!(other);
+                $f
+            }
+        }
+
+        impl<P> $trait<ExpressionOf<Proxy<f32, P>>> for f32
+        where
+            P: Constraint<ErrorMode = TryExpression>,
+        {
+            type Output = ExpressionOf<Proxy<f32, P>>;
+
+            fn $method(self, other: ExpressionOf<Proxy<f32, P>>) -> Self::Output {
+                let $left = expression!(Proxy::<_, P>::new(self));
+                let $right = expression!(other);
+                $f
+            }
+        }
+
+        impl<P> $trait<f32> for ExpressionOf<Proxy<f32, P>>
+        where
+            P: Constraint<ErrorMode = TryExpression>,
+        {
+            type Output = Self;
+
+            fn $method(self, other: f32) -> Self::Output {
+                let $left = expression!(self);
+                let $right = expression!(Proxy::<_, P>::new(other));
+                $f
             }
         }
     };

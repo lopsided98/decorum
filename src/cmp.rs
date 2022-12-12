@@ -261,7 +261,7 @@ where
     E: UndefinedError,
 {
     fn is_undefined(&self) -> bool {
-        matches!(self, Undefined(_))
+        Expression::is_undefined(self)
     }
 
     fn min_max_or_undefined(&self, other: &Self) -> (Self, Self) {

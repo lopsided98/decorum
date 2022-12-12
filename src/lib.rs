@@ -346,7 +346,7 @@ pub trait Real:
     Add<Output = Self::Branch>
     + Copy
     + Div<Output = Self::Branch>
-    + IntrinsicOrd // TODO: ???
+    + IntrinsicOrd
     + Mul<Output = Self::Branch>
     + Neg<Output = Self>
     + PartialEq
@@ -723,28 +723,44 @@ where
     }
 }
 
-pub trait IntrinsicReal: IntrinsicOrd + Real<Branch = Self> {}
+pub trait ExtendedReal: Infinite + Real {}
 
-impl<T> IntrinsicReal for T where T: IntrinsicOrd + Real<Branch = T> {}
+impl<T> ExtendedReal for T where T: Infinite + Real {}
 
-pub trait ClosedReal: Real<Branch = <Self as ClosedReal>::ClosedBranch> {
-    type ClosedBranch: Real;
-}
+fn _sanity() {
+    use core::convert::TryInto;
 
-impl<T> ClosedReal for T
-where
-    T: Real,
-    T::Branch: Real,
-{
-    type ClosedBranch = T::Branch;
+    type NotNanExpression<T> = ExpressionOf<NotNan<T, TryExpression>>;
+    type FiniteExpression<T> = ExpressionOf<Finite<T, TryExpression>>;
+
+    type R32 = FiniteExpression<f32>;
+
+    fn f<T>(x: T) -> T
+    where
+        T: Real<Branch = T> + TryInto<f32>,
+    {
+        -x
+    }
+
+    fn g<T>(x: T, y: T) -> T
+    where
+        T: Real<Branch = T> + TryInto<f32>,
+    {
+        (x + T::ONE) * y
+    }
+
+    let x = R32::from(0.0f32);
+    let y = g(f(x), 2.0f32.into());
+    let z = f(1.0f32);
+    let _w = f(y + z);
 }
 
 /// Floating-point representations.
 ///
-/// Types that implement this trait are represented using IEEE-754 encoding and
-/// expose the details of that encoding, including infinities, `NaN`, and
-/// operations on real numbers. This trait is implemented by primitive
-/// floating-point types and the `Total` proxy type.
+/// Types that implement this trait are represented using IEEE-754 encoding
+/// **and directly expose the details of that encoding**, including infinities,
+/// `NaN`s, and operations on real numbers. This trait is implemented by
+/// primitive floating-point types and the `Total` proxy type.
 pub trait Float: Encoding + Infinite + IntrinsicOrd + Nan + Real<Branch = Self> {}
 
 impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real<Branch = T> {}

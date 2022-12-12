@@ -1,5 +1,5 @@
 use core::cmp::Ordering;
-use core::convert::Infallible;
+use core::convert::{Infallible, TryFrom};
 use core::fmt::Debug;
 #[cfg(all(nightly, feature = "unstable"))]
 use core::ops::{ControlFlow, FromResidual, Try};
@@ -182,6 +182,24 @@ impl<T, E> Expression<T, E> {
             _ => None,
         }
     }
+
+    pub fn is_defined(&self) -> bool {
+        matches!(self, Defined(_))
+    }
+
+    pub fn is_undefined(&self) -> bool {
+        matches!(self, Undefined(_))
+    }
+}
+
+impl<T, P> From<T> for Expression<Proxy<T, P>, ErrorOf<Proxy<T, P>>>
+where
+    T: Float + Primitive,
+    P: Constraint,
+{
+    fn from(inner: T) -> Self {
+        Proxy::try_new(inner).into()
+    }
 }
 
 impl<T, P> From<Proxy<T, P>> for Expression<Proxy<T, P>, ErrorOf<Proxy<T, P>>>
@@ -262,3 +280,41 @@ impl<T, E> Try for Expression<T, E> {
         }
     }
 }
+
+macro_rules! impl_try_from {
+    (primitive => $t:ty) => {
+        impl<P> TryFrom<Expression<Proxy<$t, P>, P::Error>> for Proxy<$t, P>
+        where
+            P: Constraint,
+        {
+            type Error = P::Error;
+
+            fn try_from(
+                expression: Expression<Proxy<$t, P>, P::Error>,
+            ) -> Result<Self, Self::Error> {
+                match expression {
+                    Defined(defined) => Ok(defined),
+                    Undefined(undefined) => Err(undefined),
+                }
+            }
+        }
+
+        impl<P> TryFrom<Expression<Proxy<$t, P>, P::Error>> for $t
+        where
+            P: Constraint,
+        {
+            type Error = P::Error;
+
+            fn try_from(
+                expression: Expression<Proxy<$t, P>, P::Error>,
+            ) -> Result<Self, Self::Error> {
+                match expression {
+                    Defined(defined) => Ok(defined.into()),
+                    Undefined(undefined) => Err(undefined),
+                }
+            }
+        }
+    };
+}
+impl_try_from!(primitive => f32);
+impl_try_from!(primitive => f64);
