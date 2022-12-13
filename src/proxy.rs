@@ -31,8 +31,8 @@ use crate::hash::FloatHash;
 #[cfg(feature = "std")]
 use crate::ForeignReal;
 use crate::{
-    expression, Encoding, Finite, Float, ForeignFloat, Infinite, Nan, NotNan, Primitive, Real,
-    ToCanonicalBits, Total,
+    expression, BinaryReal, Codomain, Encoding, Finite, Float, ForeignFloat, Infinite, Nan, NotNan,
+    Primitive, ToCanonicalBits, Total, UnaryReal,
 };
 
 pub type BranchOf<T> = <DivergenceOf<T> as Divergence>::Branch<T, ErrorOf<T>>;
@@ -356,30 +356,32 @@ where
         })
     }
 
-    fn map<F>(self, f: F) -> BranchOf<Self>
+    fn map<F>(self, mut f: F) -> BranchOf<Self>
     where
-        F: FnOnce(T) -> T,
+        F: FnMut(T) -> T,
     {
         Self::new(f(self.into_inner()))
     }
 
-    fn map_unchecked<F>(self, f: F) -> Self
+    fn map_unchecked<F>(self, mut f: F) -> Self
     where
-        F: FnOnce(T) -> T,
+        F: FnMut(T) -> T,
     {
         Proxy::unchecked(f(self.into_inner()))
     }
 
-    fn zip_map<F>(self, other: Self, f: F) -> BranchOf<Self>
+    fn zip_map<Q, F>(self, other: Proxy<T, Q>, mut f: F) -> BranchOf<Self>
     where
-        F: FnOnce(T, T) -> T,
+        Q: Constraint,
+        F: FnMut(T, T) -> T,
     {
         Self::new(f(self.into_inner(), other.into_inner()))
     }
 
-    fn zip_map_unchecked<F>(self, other: Self, f: F) -> Self
+    fn zip_map_unchecked<Q, F>(self, other: Proxy<T, Q>, mut f: F) -> Self
     where
-        F: FnOnce(T, T) -> T,
+        Q: Constraint,
+        F: FnMut(T, T) -> T,
     {
         Proxy::unchecked(f(self.into_inner(), other.into_inner()))
     }
@@ -513,6 +515,78 @@ impl<T, P> AsRef<T> for Proxy<T, P> {
     }
 }
 
+impl<T, P> BinaryReal for Proxy<T, P>
+where
+    T: Float + Primitive,
+    P: Constraint,
+{
+    #[cfg(feature = "std")]
+    fn div_euclid(self, n: Self) -> Self::Superset {
+        self.zip_map(n, BinaryReal::div_euclid)
+    }
+
+    #[cfg(feature = "std")]
+    fn rem_euclid(self, n: Self) -> Self::Superset {
+        self.zip_map(n, BinaryReal::rem_euclid)
+    }
+
+    #[cfg(feature = "std")]
+    fn pow(self, n: Self) -> Self::Superset {
+        self.zip_map(n, BinaryReal::pow)
+    }
+
+    #[cfg(feature = "std")]
+    fn log(self, base: Self) -> Self::Superset {
+        self.zip_map(base, BinaryReal::log)
+    }
+
+    #[cfg(feature = "std")]
+    fn hypot(self, other: Self) -> Self::Superset {
+        self.zip_map(other, BinaryReal::hypot)
+    }
+
+    #[cfg(feature = "std")]
+    fn atan2(self, other: Self) -> Self::Superset {
+        self.zip_map(other, BinaryReal::atan2)
+    }
+}
+
+impl<T, P> BinaryReal<T> for Proxy<T, P>
+where
+    T: Float + Primitive,
+    P: Constraint,
+{
+    #[cfg(feature = "std")]
+    fn div_euclid(self, n: T) -> Self::Superset {
+        self.map(|inner| BinaryReal::div_euclid(inner, n))
+    }
+
+    #[cfg(feature = "std")]
+    fn rem_euclid(self, n: T) -> Self::Superset {
+        self.map(|inner| BinaryReal::rem_euclid(inner, n))
+    }
+
+    #[cfg(feature = "std")]
+    fn pow(self, n: T) -> Self::Superset {
+        self.map(|inner| BinaryReal::pow(inner, n))
+    }
+
+    #[cfg(feature = "std")]
+    fn log(self, base: T) -> Self::Superset {
+        self.map(|inner| BinaryReal::log(inner, base))
+    }
+
+    #[cfg(feature = "std")]
+    fn hypot(self, other: T) -> Self::Superset {
+        self.map(|inner| BinaryReal::hypot(inner, other))
+    }
+
+    #[cfg(feature = "std")]
+    fn atan2(self, other: T) -> Self::Superset {
+        self.map(|inner| BinaryReal::atan2(inner, other))
+    }
+}
+
 impl<T, P> Bounded for Proxy<T, P>
 where
     T: Float + Primitive,
@@ -545,6 +619,14 @@ where
 {
     type Primitive = T;
     type Constraint = P;
+}
+
+impl<T, P> Codomain for Proxy<T, P>
+where
+    T: Float + Primitive,
+    P: Constraint,
+{
+    type Superset = BranchOf<Self>;
 }
 
 impl<T, P> Copy for Proxy<T, P> where T: Copy {}
@@ -681,73 +763,73 @@ where
     P: Constraint,
 {
     fn E() -> Self {
-        <Self as Real>::E
+        <Self as UnaryReal>::E
     }
 
     fn PI() -> Self {
-        <Self as Real>::PI
+        <Self as UnaryReal>::PI
     }
 
     fn SQRT_2() -> Self {
-        <Self as Real>::SQRT_2
+        <Self as UnaryReal>::SQRT_2
     }
 
     fn FRAC_1_PI() -> Self {
-        <Self as Real>::FRAC_1_PI
+        <Self as UnaryReal>::FRAC_1_PI
     }
 
     fn FRAC_2_PI() -> Self {
-        <Self as Real>::FRAC_2_PI
+        <Self as UnaryReal>::FRAC_2_PI
     }
 
     fn FRAC_1_SQRT_2() -> Self {
-        <Self as Real>::FRAC_1_SQRT_2
+        <Self as UnaryReal>::FRAC_1_SQRT_2
     }
 
     fn FRAC_2_SQRT_PI() -> Self {
-        <Self as Real>::FRAC_2_SQRT_PI
+        <Self as UnaryReal>::FRAC_2_SQRT_PI
     }
 
     fn FRAC_PI_2() -> Self {
-        <Self as Real>::FRAC_PI_2
+        <Self as UnaryReal>::FRAC_PI_2
     }
 
     fn FRAC_PI_3() -> Self {
-        <Self as Real>::FRAC_PI_3
+        <Self as UnaryReal>::FRAC_PI_3
     }
 
     fn FRAC_PI_4() -> Self {
-        <Self as Real>::FRAC_PI_4
+        <Self as UnaryReal>::FRAC_PI_4
     }
 
     fn FRAC_PI_6() -> Self {
-        <Self as Real>::FRAC_PI_6
+        <Self as UnaryReal>::FRAC_PI_6
     }
 
     fn FRAC_PI_8() -> Self {
-        <Self as Real>::FRAC_PI_8
+        <Self as UnaryReal>::FRAC_PI_8
     }
 
     fn LN_10() -> Self {
-        <Self as Real>::LN_10
+        <Self as UnaryReal>::LN_10
     }
 
     fn LN_2() -> Self {
-        <Self as Real>::LN_2
+        <Self as UnaryReal>::LN_2
     }
 
     fn LOG10_E() -> Self {
-        <Self as Real>::LOG10_E
+        <Self as UnaryReal>::LOG10_E
     }
 
     fn LOG2_E() -> Self {
-        <Self as Real>::LOG2_E
+        <Self as UnaryReal>::LOG2_E
     }
 }
 
 impl<T, P> ForeignFloat for Proxy<T, P>
 where
-    T: Float + IntrinsicOrd + Num + NumCast + Primitive,
+    T: IntrinsicOrd + Float + ForeignFloat + Num + NumCast + Primitive,
     P: Constraint + Member<InfinitySet> + Member<NanSet>,
     P::Divergence: NonResidual<Self>,
 {
@@ -814,11 +896,11 @@ where
     }
 
     fn signum(self) -> Self {
-        self.map(Real::signum)
+        self.map(UnaryReal::signum)
     }
 
     fn abs(self) -> Self {
-        self.map(Real::abs)
+        self.map(UnaryReal::abs)
     }
 
     fn classify(self) -> FpCategory {
@@ -834,182 +916,186 @@ where
     }
 
     fn floor(self) -> Self {
-        self.map(Real::floor)
+        self.map(UnaryReal::floor)
     }
 
     fn ceil(self) -> Self {
-        self.map(Real::ceil)
+        self.map(UnaryReal::ceil)
     }
 
     fn round(self) -> Self {
-        self.map(Real::round)
+        self.map(UnaryReal::round)
     }
 
     fn trunc(self) -> Self {
-        self.map(Real::trunc)
+        self.map(UnaryReal::trunc)
     }
 
     fn fract(self) -> Self {
-        self.map(Real::fract)
+        self.map(UnaryReal::fract)
     }
 
     fn recip(self) -> Self {
-        self.map(Real::recip)
+        self.map(UnaryReal::recip)
     }
 
     #[cfg(feature = "std")]
     fn mul_add(self, a: Self, b: Self) -> Self {
-        Real::mul_add(self, a, b)
+        // TODO: This implementation requires a `ForeignFloat` bound and
+        //       forwards to its `mul_add`. Consider supporting `mul_add` via a
+        //       trait that is more specific to floating-point encoding than
+        //       `BinaryReal` and friends.
+        self.map(|inner| ForeignFloat::mul_add(inner, a.into_inner(), b.into_inner()))
     }
 
     #[cfg(feature = "std")]
     fn abs_sub(self, other: Self) -> Self {
-        self.zip_map(other, |a, b| (a - b).abs())
+        self.zip_map(other, |a, b| UnaryReal::abs(a - b))
     }
 
     #[cfg(feature = "std")]
     fn powi(self, n: i32) -> Self {
-        Real::powi(self, n)
+        UnaryReal::powi(self, n)
     }
 
     #[cfg(feature = "std")]
     fn powf(self, n: Self) -> Self {
-        Real::powf(self, n)
+        BinaryReal::pow(self, n)
     }
 
     #[cfg(feature = "std")]
     fn sqrt(self) -> Self {
-        Real::sqrt(self)
+        UnaryReal::sqrt(self)
     }
 
     #[cfg(feature = "std")]
     fn cbrt(self) -> Self {
-        Real::cbrt(self)
+        UnaryReal::cbrt(self)
     }
 
     #[cfg(feature = "std")]
     fn exp(self) -> Self {
-        Real::exp(self)
+        UnaryReal::exp(self)
     }
 
     #[cfg(feature = "std")]
     fn exp2(self) -> Self {
-        Real::exp2(self)
+        UnaryReal::exp2(self)
     }
 
     #[cfg(feature = "std")]
     fn exp_m1(self) -> Self {
-        Real::exp_m1(self)
+        UnaryReal::exp_m1(self)
     }
 
     #[cfg(feature = "std")]
     fn log(self, base: Self) -> Self {
-        Real::log(self, base)
+        BinaryReal::log(self, base)
     }
 
     #[cfg(feature = "std")]
     fn ln(self) -> Self {
-        Real::ln(self)
+        UnaryReal::ln(self)
     }
 
     #[cfg(feature = "std")]
     fn log2(self) -> Self {
-        Real::log2(self)
+        UnaryReal::log2(self)
     }
 
     #[cfg(feature = "std")]
     fn log10(self) -> Self {
-        Real::log10(self)
+        UnaryReal::log10(self)
     }
 
     #[cfg(feature = "std")]
     fn ln_1p(self) -> Self {
-        Real::ln_1p(self)
+        UnaryReal::ln_1p(self)
     }
 
     #[cfg(feature = "std")]
     fn hypot(self, other: Self) -> Self {
-        Real::hypot(self, other)
+        BinaryReal::hypot(self, other)
     }
 
     #[cfg(feature = "std")]
     fn sin(self) -> Self {
-        Real::sin(self)
+        UnaryReal::sin(self)
     }
 
     #[cfg(feature = "std")]
     fn cos(self) -> Self {
-        Real::cos(self)
+        UnaryReal::cos(self)
     }
 
     #[cfg(feature = "std")]
     fn tan(self) -> Self {
-        Real::tan(self)
+        UnaryReal::tan(self)
     }
 
     #[cfg(feature = "std")]
     fn asin(self) -> Self {
-        Real::asin(self)
+        UnaryReal::asin(self)
     }
 
     #[cfg(feature = "std")]
     fn acos(self) -> Self {
-        Real::acos(self)
+        UnaryReal::acos(self)
     }
 
     #[cfg(feature = "std")]
     fn atan(self) -> Self {
-        Real::atan(self)
+        UnaryReal::atan(self)
     }
 
     #[cfg(feature = "std")]
     fn atan2(self, other: Self) -> Self {
-        Real::atan2(self, other)
+        BinaryReal::atan2(self, other)
     }
 
     #[cfg(feature = "std")]
     fn sin_cos(self) -> (Self, Self) {
-        Real::sin_cos(self)
+        UnaryReal::sin_cos(self)
     }
 
     #[cfg(feature = "std")]
     fn sinh(self) -> Self {
-        Real::sinh(self)
+        UnaryReal::sinh(self)
     }
 
     #[cfg(feature = "std")]
     fn cosh(self) -> Self {
-        Real::cosh(self)
+        UnaryReal::cosh(self)
     }
 
     #[cfg(feature = "std")]
     fn tanh(self) -> Self {
-        Real::tanh(self)
+        UnaryReal::tanh(self)
     }
 
     #[cfg(feature = "std")]
     fn asinh(self) -> Self {
-        Real::asinh(self)
+        UnaryReal::asinh(self)
     }
 
     #[cfg(feature = "std")]
     fn acosh(self) -> Self {
-        Real::acosh(self)
+        UnaryReal::acosh(self)
     }
 
     #[cfg(feature = "std")]
     fn atanh(self) -> Self {
-        Real::atanh(self)
+        UnaryReal::atanh(self)
     }
 
     #[cfg(not(feature = "std"))]
     fn to_degrees(self) -> Self {
-        self.map(Real::to_degrees)
+        UnaryReal::to_degrees(self)
     }
 
     #[cfg(not(feature = "std"))]
     fn to_radians(self) -> Self {
-        self.map(Real::to_radians)
+        UnaryReal::to_radians(self)
     }
 }
 
@@ -1386,249 +1472,7 @@ where
     where
         I: Iterator<Item = Self>,
     {
-        input.fold(Real::ONE, |a, b| a * b)
-    }
-}
-
-impl<T, P> Real for Proxy<T, P>
-where
-    T: Float + Primitive,
-    P: Constraint,
-{
-    type Branch = BranchOf<Self>;
-
-    const ZERO: Self = Proxy::unchecked(Real::ZERO);
-    const ONE: Self = Proxy::unchecked(Real::ONE);
-    const E: Self = Proxy::unchecked(Real::E);
-    const PI: Self = Proxy::unchecked(Real::PI);
-    const FRAC_1_PI: Self = Proxy::unchecked(Real::FRAC_1_PI);
-    const FRAC_2_PI: Self = Proxy::unchecked(Real::FRAC_2_PI);
-    const FRAC_2_SQRT_PI: Self = Proxy::unchecked(Real::FRAC_2_SQRT_PI);
-    const FRAC_PI_2: Self = Proxy::unchecked(Real::FRAC_PI_2);
-    const FRAC_PI_3: Self = Proxy::unchecked(Real::FRAC_PI_3);
-    const FRAC_PI_4: Self = Proxy::unchecked(Real::FRAC_PI_4);
-    const FRAC_PI_6: Self = Proxy::unchecked(Real::FRAC_PI_6);
-    const FRAC_PI_8: Self = Proxy::unchecked(Real::FRAC_PI_8);
-    const SQRT_2: Self = Proxy::unchecked(Real::SQRT_2);
-    const FRAC_1_SQRT_2: Self = Proxy::unchecked(Real::FRAC_1_SQRT_2);
-    const LN_2: Self = Proxy::unchecked(Real::LN_2);
-    const LN_10: Self = Proxy::unchecked(Real::LN_10);
-    const LOG2_E: Self = Proxy::unchecked(Real::LOG2_E);
-    const LOG10_E: Self = Proxy::unchecked(Real::LOG10_E);
-
-    fn is_zero(self) -> bool {
-        self.into_inner().is_zero()
-    }
-
-    fn is_one(self) -> bool {
-        self.into_inner().is_zero()
-    }
-
-    fn is_positive(self) -> bool {
-        self.into_inner().is_positive()
-    }
-
-    fn is_negative(self) -> bool {
-        self.into_inner().is_negative()
-    }
-
-    #[cfg(feature = "std")]
-    fn abs(self) -> Self {
-        self.map_unchecked(Real::abs)
-    }
-
-    #[cfg(feature = "std")]
-    fn signum(self) -> Self {
-        self.map_unchecked(Real::signum)
-    }
-
-    fn floor(self) -> Self {
-        self.map_unchecked(Real::floor)
-    }
-
-    fn ceil(self) -> Self {
-        self.map_unchecked(Real::ceil)
-    }
-
-    fn round(self) -> Self {
-        self.map_unchecked(Real::round)
-    }
-
-    fn trunc(self) -> Self {
-        self.map_unchecked(Real::trunc)
-    }
-
-    fn fract(self) -> Self {
-        self.map_unchecked(Real::fract)
-    }
-
-    fn recip(self) -> Self::Branch {
-        self.map(Real::recip)
-    }
-
-    #[cfg(feature = "std")]
-    fn mul_add(self, a: Self, b: Self) -> Self::Branch {
-        Proxy::<_, P>::new(<T as Real>::mul_add(
-            self.into_inner(),
-            a.into_inner(),
-            b.into_inner(),
-        ))
-    }
-
-    #[cfg(feature = "std")]
-    fn div_euclid(self, n: Self) -> Self::Branch {
-        self.zip_map(n, Real::div_euclid)
-    }
-
-    #[cfg(feature = "std")]
-    fn rem_euclid(self, n: Self) -> Self::Branch {
-        self.zip_map(n, Real::rem_euclid)
-    }
-
-    #[cfg(feature = "std")]
-    fn powi(self, n: i32) -> Self::Branch {
-        self.map(|inner| Real::powi(inner, n))
-    }
-
-    #[cfg(feature = "std")]
-    fn powf(self, n: Self) -> Self::Branch {
-        self.zip_map(n, Real::powf)
-    }
-
-    #[cfg(feature = "std")]
-    fn sqrt(self) -> Self::Branch {
-        self.map(Real::sqrt)
-    }
-
-    #[cfg(feature = "std")]
-    fn cbrt(self) -> Self {
-        self.map_unchecked(Real::cbrt)
-    }
-
-    #[cfg(feature = "std")]
-    fn exp(self) -> Self::Branch {
-        self.map(Real::exp)
-    }
-
-    #[cfg(feature = "std")]
-    fn exp2(self) -> Self::Branch {
-        self.map(Real::exp2)
-    }
-
-    #[cfg(feature = "std")]
-    fn exp_m1(self) -> Self::Branch {
-        self.map(Real::exp_m1)
-    }
-
-    #[cfg(feature = "std")]
-    fn log(self, base: Self) -> Self {
-        self.zip_map_unchecked(base, Real::log)
-    }
-
-    #[cfg(feature = "std")]
-    fn ln(self) -> Self {
-        self.map_unchecked(Real::ln)
-    }
-
-    #[cfg(feature = "std")]
-    fn log2(self) -> Self {
-        self.map_unchecked(Real::log2)
-    }
-
-    #[cfg(feature = "std")]
-    fn log10(self) -> Self {
-        self.map_unchecked(Real::log10)
-    }
-
-    #[cfg(feature = "std")]
-    fn ln_1p(self) -> Self {
-        self.map_unchecked(Real::ln_1p)
-    }
-
-    #[cfg(feature = "std")]
-    fn to_degrees(self) -> Self::Branch {
-        self.map(Real::to_degrees)
-    }
-
-    #[cfg(feature = "std")]
-    fn to_radians(self) -> Self {
-        self.map_unchecked(Real::to_radians)
-    }
-
-    #[cfg(feature = "std")]
-    fn hypot(self, other: Self) -> Self::Branch {
-        self.zip_map(other, Real::hypot)
-    }
-
-    #[cfg(feature = "std")]
-    fn sin(self) -> Self {
-        self.map_unchecked(Real::sin)
-    }
-
-    #[cfg(feature = "std")]
-    fn cos(self) -> Self {
-        self.map_unchecked(Real::cos)
-    }
-
-    #[cfg(feature = "std")]
-    fn tan(self) -> Self::Branch {
-        self.map(Real::tan)
-    }
-
-    #[cfg(feature = "std")]
-    fn asin(self) -> Self::Branch {
-        self.map(Real::asin)
-    }
-
-    #[cfg(feature = "std")]
-    fn acos(self) -> Self::Branch {
-        self.map(Real::acos)
-    }
-
-    #[cfg(feature = "std")]
-    fn atan(self) -> Self {
-        self.map_unchecked(Real::atan)
-    }
-
-    #[cfg(feature = "std")]
-    fn atan2(self, other: Self) -> Self {
-        self.zip_map_unchecked(other, Real::atan2)
-    }
-
-    #[cfg(feature = "std")]
-    fn sin_cos(self) -> (Self, Self) {
-        let (sin, cos) = self.into_inner().sin_cos();
-        (Proxy::unchecked(sin), Proxy::unchecked(cos))
-    }
-
-    #[cfg(feature = "std")]
-    fn sinh(self) -> Self {
-        self.map_unchecked(Real::sinh)
-    }
-
-    #[cfg(feature = "std")]
-    fn cosh(self) -> Self {
-        self.map_unchecked(Real::cosh)
-    }
-
-    #[cfg(feature = "std")]
-    fn tanh(self) -> Self {
-        self.map_unchecked(Real::tanh)
-    }
-
-    #[cfg(feature = "std")]
-    fn asinh(self) -> Self::Branch {
-        self.map(Real::asinh)
-    }
-
-    #[cfg(feature = "std")]
-    fn acosh(self) -> Self::Branch {
-        self.map(Real::acosh)
-    }
-
-    #[cfg(feature = "std")]
-    fn atanh(self) -> Self::Branch {
-        self.map(Real::atanh)
+        input.fold(UnaryReal::ONE, |a, b| a * b)
     }
 }
 
@@ -1709,7 +1553,7 @@ where
     P::Divergence: NonResidual<Self>,
 {
     fn abs(&self) -> Self {
-        self.map_unchecked(Real::abs)
+        self.map_unchecked(UnaryReal::abs)
     }
 
     #[cfg(feature = "std")]
@@ -1897,6 +1741,207 @@ where
     }
 }
 
+impl<T, P> UnaryReal for Proxy<T, P>
+where
+    T: Float + Primitive,
+    P: Constraint,
+{
+    const ZERO: Self = Proxy::unchecked(UnaryReal::ZERO);
+    const ONE: Self = Proxy::unchecked(UnaryReal::ONE);
+    const E: Self = Proxy::unchecked(UnaryReal::E);
+    const PI: Self = Proxy::unchecked(UnaryReal::PI);
+    const FRAC_1_PI: Self = Proxy::unchecked(UnaryReal::FRAC_1_PI);
+    const FRAC_2_PI: Self = Proxy::unchecked(UnaryReal::FRAC_2_PI);
+    const FRAC_2_SQRT_PI: Self = Proxy::unchecked(UnaryReal::FRAC_2_SQRT_PI);
+    const FRAC_PI_2: Self = Proxy::unchecked(UnaryReal::FRAC_PI_2);
+    const FRAC_PI_3: Self = Proxy::unchecked(UnaryReal::FRAC_PI_3);
+    const FRAC_PI_4: Self = Proxy::unchecked(UnaryReal::FRAC_PI_4);
+    const FRAC_PI_6: Self = Proxy::unchecked(UnaryReal::FRAC_PI_6);
+    const FRAC_PI_8: Self = Proxy::unchecked(UnaryReal::FRAC_PI_8);
+    const SQRT_2: Self = Proxy::unchecked(UnaryReal::SQRT_2);
+    const FRAC_1_SQRT_2: Self = Proxy::unchecked(UnaryReal::FRAC_1_SQRT_2);
+    const LN_2: Self = Proxy::unchecked(UnaryReal::LN_2);
+    const LN_10: Self = Proxy::unchecked(UnaryReal::LN_10);
+    const LOG2_E: Self = Proxy::unchecked(UnaryReal::LOG2_E);
+    const LOG10_E: Self = Proxy::unchecked(UnaryReal::LOG10_E);
+
+    fn is_zero(self) -> bool {
+        self.into_inner().is_zero()
+    }
+
+    fn is_one(self) -> bool {
+        self.into_inner().is_zero()
+    }
+
+    fn is_positive(self) -> bool {
+        self.into_inner().is_positive()
+    }
+
+    fn is_negative(self) -> bool {
+        self.into_inner().is_negative()
+    }
+
+    #[cfg(feature = "std")]
+    fn abs(self) -> Self {
+        self.map_unchecked(UnaryReal::abs)
+    }
+
+    #[cfg(feature = "std")]
+    fn signum(self) -> Self {
+        self.map_unchecked(UnaryReal::signum)
+    }
+
+    fn floor(self) -> Self {
+        self.map_unchecked(UnaryReal::floor)
+    }
+
+    fn ceil(self) -> Self {
+        self.map_unchecked(UnaryReal::ceil)
+    }
+
+    fn round(self) -> Self {
+        self.map_unchecked(UnaryReal::round)
+    }
+
+    fn trunc(self) -> Self {
+        self.map_unchecked(UnaryReal::trunc)
+    }
+
+    fn fract(self) -> Self {
+        self.map_unchecked(UnaryReal::fract)
+    }
+
+    fn recip(self) -> Self::Superset {
+        self.map(UnaryReal::recip)
+    }
+
+    #[cfg(feature = "std")]
+    fn powi(self, n: i32) -> Self::Superset {
+        self.map(|inner| UnaryReal::powi(inner, n))
+    }
+
+    #[cfg(feature = "std")]
+    fn sqrt(self) -> Self::Superset {
+        self.map(UnaryReal::sqrt)
+    }
+
+    #[cfg(feature = "std")]
+    fn cbrt(self) -> Self {
+        self.map_unchecked(UnaryReal::cbrt)
+    }
+
+    #[cfg(feature = "std")]
+    fn exp(self) -> Self::Superset {
+        self.map(UnaryReal::exp)
+    }
+
+    #[cfg(feature = "std")]
+    fn exp2(self) -> Self::Superset {
+        self.map(UnaryReal::exp2)
+    }
+
+    #[cfg(feature = "std")]
+    fn exp_m1(self) -> Self::Superset {
+        self.map(UnaryReal::exp_m1)
+    }
+
+    #[cfg(feature = "std")]
+    fn ln(self) -> Self::Superset {
+        self.map(UnaryReal::ln)
+    }
+
+    #[cfg(feature = "std")]
+    fn log2(self) -> Self::Superset {
+        self.map(UnaryReal::log2)
+    }
+
+    #[cfg(feature = "std")]
+    fn log10(self) -> Self::Superset {
+        self.map(UnaryReal::log10)
+    }
+
+    #[cfg(feature = "std")]
+    fn ln_1p(self) -> Self::Superset {
+        self.map(UnaryReal::ln_1p)
+    }
+
+    #[cfg(feature = "std")]
+    fn to_degrees(self) -> Self::Superset {
+        self.map(UnaryReal::to_degrees)
+    }
+
+    #[cfg(feature = "std")]
+    fn to_radians(self) -> Self {
+        self.map_unchecked(UnaryReal::to_radians)
+    }
+
+    #[cfg(feature = "std")]
+    fn sin(self) -> Self {
+        self.map_unchecked(UnaryReal::sin)
+    }
+
+    #[cfg(feature = "std")]
+    fn cos(self) -> Self {
+        self.map_unchecked(UnaryReal::cos)
+    }
+
+    #[cfg(feature = "std")]
+    fn tan(self) -> Self::Superset {
+        self.map(UnaryReal::tan)
+    }
+
+    #[cfg(feature = "std")]
+    fn asin(self) -> Self::Superset {
+        self.map(UnaryReal::asin)
+    }
+
+    #[cfg(feature = "std")]
+    fn acos(self) -> Self::Superset {
+        self.map(UnaryReal::acos)
+    }
+
+    #[cfg(feature = "std")]
+    fn atan(self) -> Self {
+        self.map_unchecked(UnaryReal::atan)
+    }
+
+    #[cfg(feature = "std")]
+    fn sin_cos(self) -> (Self, Self) {
+        let (sin, cos) = self.into_inner().sin_cos();
+        (Proxy::unchecked(sin), Proxy::unchecked(cos))
+    }
+
+    #[cfg(feature = "std")]
+    fn sinh(self) -> Self {
+        self.map_unchecked(UnaryReal::sinh)
+    }
+
+    #[cfg(feature = "std")]
+    fn cosh(self) -> Self {
+        self.map_unchecked(UnaryReal::cosh)
+    }
+
+    #[cfg(feature = "std")]
+    fn tanh(self) -> Self {
+        self.map_unchecked(UnaryReal::tanh)
+    }
+
+    #[cfg(feature = "std")]
+    fn asinh(self) -> Self::Superset {
+        self.map(UnaryReal::asinh)
+    }
+
+    #[cfg(feature = "std")]
+    fn acosh(self) -> Self::Superset {
+        self.map(UnaryReal::acosh)
+    }
+
+    #[cfg(feature = "std")]
+    fn atanh(self) -> Self::Superset {
+        self.map(UnaryReal::atanh)
+    }
+}
+
 impl<T, P> UpperExp for Proxy<T, P>
 where
     T: Float + Primitive + UpperExp,
@@ -1965,6 +2010,8 @@ macro_rules! impl_binary_expression {
                 $f
             }
         }
+
+        // TODO: Implement these traits for all primitives, not only `f32`.
 
         impl<P> $trait<ExpressionOf<Proxy<f32, P>>> for f32
         where
@@ -2073,31 +2120,31 @@ macro_rules! impl_foreign_real {
             }
 
             fn floor(self) -> Self {
-                Real::floor(self)
+                UnaryReal::floor(self)
             }
 
             fn ceil(self) -> Self {
-                Real::ceil(self)
+                UnaryReal::ceil(self)
             }
 
             fn round(self) -> Self {
-                Real::round(self)
+                UnaryReal::round(self)
             }
 
             fn trunc(self) -> Self {
-                Real::trunc(self)
+                UnaryReal::trunc(self)
             }
 
             fn fract(self) -> Self {
-                Real::fract(self)
+                UnaryReal::fract(self)
             }
 
             fn recip(self) -> Self {
-                Real::recip(self)
+                UnaryReal::recip(self)
             }
 
             fn mul_add(self, a: Self, b: Self) -> Self {
-                Real::mul_add(self, a, b)
+                self.map(|inner| inner.mul_add(a.into_inner(), b.into_inner()))
             }
 
             fn abs_sub(self, other: Self) -> Self {
@@ -2105,47 +2152,47 @@ macro_rules! impl_foreign_real {
             }
 
             fn powi(self, n: i32) -> Self {
-                Real::powi(self, n)
+                UnaryReal::powi(self, n)
             }
 
             fn powf(self, n: Self) -> Self {
-                Real::powf(self, n)
+                BinaryReal::pow(self, n)
             }
 
             fn sqrt(self) -> Self {
-                Real::sqrt(self)
+                UnaryReal::sqrt(self)
             }
 
             fn cbrt(self) -> Self {
-                Real::cbrt(self)
+                UnaryReal::cbrt(self)
             }
 
             fn exp(self) -> Self {
-                Real::exp(self)
+                UnaryReal::exp(self)
             }
 
             fn exp2(self) -> Self {
-                Real::exp2(self)
+                UnaryReal::exp2(self)
             }
 
             fn exp_m1(self) -> Self {
-                Real::exp_m1(self)
+                UnaryReal::exp_m1(self)
             }
 
             fn log(self, base: Self) -> Self {
-                Real::log(self, base)
+                BinaryReal::log(self, base)
             }
 
             fn ln(self) -> Self {
-                Real::ln(self)
+                UnaryReal::ln(self)
             }
 
             fn log2(self) -> Self {
-                Real::log2(self)
+                UnaryReal::log2(self)
             }
 
             fn log10(self) -> Self {
-                Real::log10(self)
+                UnaryReal::log10(self)
             }
 
             fn to_degrees(self) -> Self {
@@ -2157,67 +2204,67 @@ macro_rules! impl_foreign_real {
             }
 
             fn ln_1p(self) -> Self {
-                Real::ln_1p(self)
+                UnaryReal::ln_1p(self)
             }
 
             fn hypot(self, other: Self) -> Self {
-                Real::hypot(self, other)
+                BinaryReal::hypot(self, other)
             }
 
             fn sin(self) -> Self {
-                Real::sin(self)
+                UnaryReal::sin(self)
             }
 
             fn cos(self) -> Self {
-                Real::cos(self)
+                UnaryReal::cos(self)
             }
 
             fn tan(self) -> Self {
-                Real::tan(self)
+                UnaryReal::tan(self)
             }
 
             fn asin(self) -> Self {
-                Real::asin(self)
+                UnaryReal::asin(self)
             }
 
             fn acos(self) -> Self {
-                Real::acos(self)
+                UnaryReal::acos(self)
             }
 
             fn atan(self) -> Self {
-                Real::atan(self)
+                UnaryReal::atan(self)
             }
 
             fn atan2(self, other: Self) -> Self {
-                Real::atan2(self, other)
+                BinaryReal::atan2(self, other)
             }
 
             fn sin_cos(self) -> (Self, Self) {
-                Real::sin_cos(self)
+                UnaryReal::sin_cos(self)
             }
 
             fn sinh(self) -> Self {
-                Real::sinh(self)
+                UnaryReal::sinh(self)
             }
 
             fn cosh(self) -> Self {
-                Real::cosh(self)
+                UnaryReal::cosh(self)
             }
 
             fn tanh(self) -> Self {
-                Real::tanh(self)
+                UnaryReal::tanh(self)
             }
 
             fn asinh(self) -> Self {
-                Real::asinh(self)
+                UnaryReal::asinh(self)
             }
 
             fn acosh(self) -> Self {
-                Real::acosh(self)
+                UnaryReal::acosh(self)
             }
 
             fn atanh(self) -> Self {
-                Real::atanh(self)
+                UnaryReal::atanh(self)
             }
         }
     };
@@ -2287,7 +2334,7 @@ impl_try_from!(proxy => NotNan);
 mod tests {
     use core::convert::TryInto;
 
-    use crate::{Finite, Float, Infinite, Nan, NotNan, Real, Total, N32, R32};
+    use crate::{Finite, Float, Infinite, Nan, NotNan, Real, Total, UnaryReal, N32, R32};
 
     #[test]
     fn total_no_panic_on_inf() {
@@ -2422,7 +2469,7 @@ mod tests {
 
         #[cfg(feature = "std")]
         {
-            let w: Total<f32> = (Real::sqrt(-1.0)).into();
+            let w: Total<f32> = (UnaryReal::sqrt(-1.0)).into();
             assert_eq!(x, w);
         }
     }

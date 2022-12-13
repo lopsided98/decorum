@@ -328,34 +328,20 @@ impl Encoding for f64 {
     }
 }
 
-// TODO: Bounds on the following traits were removed, because they require
-//       `NumOps` and that requires operation outputs to be closed:
-//
-//       - `Num`
-//       - `Signed`
-/// Types that can represent real numbers.
-///
-/// Provides values and operations that generally apply to real numbers. As
-/// such, this trait is implemented by types using floating-point
-/// representations, but this trait is a general numeric trait and can be
-/// implemented by other numeric types as well.
-///
-/// Some members of this trait depend on the standard library and the `std`
-/// feature.
-pub trait Real:
-    Add<Output = Self::Branch>
-    + Copy
-    + Div<Output = Self::Branch>
-    + IntrinsicOrd
-    + Mul<Output = Self::Branch>
-    + Neg<Output = Self>
-    + PartialEq
-    + PartialOrd
-    + Rem<Output = Self::Branch>
-    + Sub<Output = Self::Branch>
-{
-    type Branch;
+// TODO: Separate traits concerning encoding and mathematics (real numbers)
+//       into different modules.
 
+pub trait Codomain {
+    type Superset;
+}
+
+pub trait Endofunction: Codomain<Superset = Self> {}
+
+impl<T> Endofunction for T where T: Codomain<Superset = T> {}
+
+pub trait UnaryReal:
+    Codomain + IntrinsicOrd + Neg<Output = Self> + PartialEq + PartialOrd + Sized
+{
     const ZERO: Self;
     const ONE: Self;
     const E: Self;
@@ -397,60 +383,45 @@ pub trait Real:
     fn round(self) -> Self;
     fn trunc(self) -> Self;
     fn fract(self) -> Self;
-    fn recip(self) -> Self::Branch; // Undefined or infinity.
+    fn recip(self) -> Self::Superset; // Undefined or infinity.
 
     #[cfg(feature = "std")]
-    fn mul_add(self, a: Self, b: Self) -> Self::Branch; // Overflow.
+    fn powi(self, n: i32) -> Self::Superset; // Overflow, undefined, or infinity.
     #[cfg(feature = "std")]
-    fn div_euclid(self, n: Self) -> Self::Branch; // Undefined or infinity.
-    #[cfg(feature = "std")]
-    fn rem_euclid(self, n: Self) -> Self::Branch; // Undefined or infinity.
-
-    #[cfg(feature = "std")]
-    fn powi(self, n: i32) -> Self::Branch; // Overflow.
-    #[cfg(feature = "std")]
-    fn powf(self, n: Self) -> Self::Branch; // Overflow.
-    #[cfg(feature = "std")]
-    fn sqrt(self) -> Self::Branch; // Undefined or infinity.
+    fn sqrt(self) -> Self::Superset; // Undefined or infinity.
     #[cfg(feature = "std")]
     fn cbrt(self) -> Self;
     #[cfg(feature = "std")]
-    fn exp(self) -> Self::Branch; // Overflow.
+    fn exp(self) -> Self::Superset; // Overflow.
     #[cfg(feature = "std")]
-    fn exp2(self) -> Self::Branch; // Overflow.
+    fn exp2(self) -> Self::Superset; // Overflow.
     #[cfg(feature = "std")]
-    fn exp_m1(self) -> Self::Branch; // Overflow.
+    fn exp_m1(self) -> Self::Superset; // Overflow.
     #[cfg(feature = "std")]
-    fn log(self, base: Self) -> Self;
+    fn ln(self) -> Self::Superset; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn ln(self) -> Self;
+    fn log2(self) -> Self::Superset; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn log2(self) -> Self;
+    fn log10(self) -> Self::Superset; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn log10(self) -> Self;
-    #[cfg(feature = "std")]
-    fn ln_1p(self) -> Self;
+    fn ln_1p(self) -> Self::Superset; // Undefined or infinity.
 
     #[cfg(feature = "std")]
-    fn to_degrees(self) -> Self::Branch; // Overflow.
+    fn to_degrees(self) -> Self::Superset; // Overflow.
     #[cfg(feature = "std")]
     fn to_radians(self) -> Self;
-    #[cfg(feature = "std")]
-    fn hypot(self, other: Self) -> Self::Branch; // Overflow.
     #[cfg(feature = "std")]
     fn sin(self) -> Self;
     #[cfg(feature = "std")]
     fn cos(self) -> Self;
     #[cfg(feature = "std")]
-    fn tan(self) -> Self::Branch; // Undefined or infinity.
+    fn tan(self) -> Self::Superset; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn asin(self) -> Self::Branch; // Undefined or infinity.
+    fn asin(self) -> Self::Superset; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn acos(self) -> Self::Branch; // Undefined or infinity.
+    fn acos(self) -> Self::Superset; // Undefined or infinity.
     #[cfg(feature = "std")]
     fn atan(self) -> Self;
-    #[cfg(feature = "std")]
-    fn atan2(self, other: Self) -> Self;
     #[cfg(feature = "std")]
     fn sin_cos(self) -> (Self, Self);
     #[cfg(feature = "std")]
@@ -460,39 +431,84 @@ pub trait Real:
     #[cfg(feature = "std")]
     fn tanh(self) -> Self;
     #[cfg(feature = "std")]
-    fn asinh(self) -> Self::Branch; // Undefined or infinity.
+    fn asinh(self) -> Self::Superset; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn acosh(self) -> Self::Branch; // Undefined or infinity.
+    fn acosh(self) -> Self::Superset; // Undefined or infinity.
     #[cfg(feature = "std")]
-    fn atanh(self) -> Self::Branch; // Undefined or infinity.
+    fn atanh(self) -> Self::Superset; // Undefined or infinity.
 }
 
-impl<T, P> Real for ExpressionOf<Proxy<T, P>>
+pub trait BinaryReal<T = Self>:
+    Add<T, Output = Self::Superset>
+    + Div<T, Output = Self::Superset>
+    + Mul<T, Output = Self::Superset>
+    + Rem<T, Output = Self::Superset>
+    + Sub<T, Output = Self::Superset>
+    + UnaryReal
+{
+    #[cfg(feature = "std")]
+    fn div_euclid(self, n: T) -> Self::Superset; // Undefined or infinity.
+    #[cfg(feature = "std")]
+    fn rem_euclid(self, n: T) -> Self::Superset; // Undefined or infinity.
+
+    #[cfg(feature = "std")]
+    fn pow(self, n: T) -> Self::Superset; // Overflow, undefined, or infinity.
+    #[cfg(feature = "std")]
+    fn log(self, base: T) -> Self::Superset; // Undefined or infinity.
+
+    #[cfg(feature = "std")]
+    fn hypot(self, other: T) -> Self::Superset; // Overflow.
+                                                // NOTE: Because `T` is not constrained, it isn't possible for functions
+                                                //       that always map reals to reals to express their output as `Self`.
+                                                //       The `T` input may not be real and that may result in a non-real
+                                                //       output.
+    #[cfg(feature = "std")]
+    fn atan2(self, other: T) -> Self::Superset;
+}
+
+pub trait Real: BinaryReal<Self> {}
+
+impl<T> Real for T where T: BinaryReal<T> {}
+
+pub trait ExtendedReal: Infinite + Real {}
+
+impl<T> ExtendedReal for T where T: Infinite + Real {}
+
+// TODO: Move implementations for expressions into the module of expression
+//       types.
+impl<T, P> Codomain for ExpressionOf<Proxy<T, P>>
 where
-    ErrorOf<Proxy<T, P>>: Copy + UndefinedError,
+    ErrorOf<Proxy<T, P>>: UndefinedError,
     T: Float + Primitive,
     P: Constraint<Divergence = TryExpression>,
 {
-    type Branch = Self;
+    type Superset = Self;
+}
 
-    const ZERO: Self = Defined(Real::ZERO);
-    const ONE: Self = Defined(Real::ONE);
-    const E: Self = Defined(Real::E);
-    const PI: Self = Defined(Real::PI);
-    const FRAC_1_PI: Self = Defined(Real::FRAC_1_PI);
-    const FRAC_2_PI: Self = Defined(Real::FRAC_2_PI);
-    const FRAC_2_SQRT_PI: Self = Defined(Real::FRAC_2_SQRT_PI);
-    const FRAC_PI_2: Self = Defined(Real::FRAC_PI_2);
-    const FRAC_PI_3: Self = Defined(Real::FRAC_PI_3);
-    const FRAC_PI_4: Self = Defined(Real::FRAC_PI_4);
-    const FRAC_PI_6: Self = Defined(Real::FRAC_PI_6);
-    const FRAC_PI_8: Self = Defined(Real::FRAC_PI_8);
-    const SQRT_2: Self = Defined(Real::SQRT_2);
-    const FRAC_1_SQRT_2: Self = Defined(Real::FRAC_1_SQRT_2);
-    const LN_2: Self = Defined(Real::LN_2);
-    const LN_10: Self = Defined(Real::LN_10);
-    const LOG2_E: Self = Defined(Real::LOG2_E);
-    const LOG10_E: Self = Defined(Real::LOG10_E);
+impl<T, P> UnaryReal for ExpressionOf<Proxy<T, P>>
+where
+    ErrorOf<Proxy<T, P>>: Clone + UndefinedError,
+    T: Float + Primitive,
+    P: Constraint<Divergence = TryExpression>,
+{
+    const ZERO: Self = Defined(UnaryReal::ZERO);
+    const ONE: Self = Defined(UnaryReal::ONE);
+    const E: Self = Defined(UnaryReal::E);
+    const PI: Self = Defined(UnaryReal::PI);
+    const FRAC_1_PI: Self = Defined(UnaryReal::FRAC_1_PI);
+    const FRAC_2_PI: Self = Defined(UnaryReal::FRAC_2_PI);
+    const FRAC_2_SQRT_PI: Self = Defined(UnaryReal::FRAC_2_SQRT_PI);
+    const FRAC_PI_2: Self = Defined(UnaryReal::FRAC_PI_2);
+    const FRAC_PI_3: Self = Defined(UnaryReal::FRAC_PI_3);
+    const FRAC_PI_4: Self = Defined(UnaryReal::FRAC_PI_4);
+    const FRAC_PI_6: Self = Defined(UnaryReal::FRAC_PI_6);
+    const FRAC_PI_8: Self = Defined(UnaryReal::FRAC_PI_8);
+    const SQRT_2: Self = Defined(UnaryReal::SQRT_2);
+    const FRAC_1_SQRT_2: Self = Defined(UnaryReal::FRAC_1_SQRT_2);
+    const LN_2: Self = Defined(UnaryReal::LN_2);
+    const LN_10: Self = Defined(UnaryReal::LN_10);
+    const LOG2_E: Self = Defined(UnaryReal::LOG2_E);
+    const LOG10_E: Self = Defined(UnaryReal::LOG10_E);
 
     fn is_zero(self) -> bool {
         match self.defined() {
@@ -524,161 +540,126 @@ where
 
     #[cfg(feature = "std")]
     fn abs(self) -> Self {
-        self.map(Real::abs)
+        self.map(UnaryReal::abs)
     }
 
     #[cfg(feature = "std")]
     fn signum(self) -> Self {
-        self.map(Real::signum)
+        self.map(UnaryReal::signum)
     }
 
     fn floor(self) -> Self {
-        self.map(Real::floor)
+        self.map(UnaryReal::floor)
     }
 
     fn ceil(self) -> Self {
-        self.map(Real::ceil)
+        self.map(UnaryReal::ceil)
     }
 
     fn round(self) -> Self {
-        self.map(Real::round)
+        self.map(UnaryReal::round)
     }
 
     fn trunc(self) -> Self {
-        self.map(Real::trunc)
+        self.map(UnaryReal::trunc)
     }
 
     fn fract(self) -> Self {
-        self.map(Real::fract)
+        self.map(UnaryReal::fract)
     }
 
-    fn recip(self) -> Self::Branch {
-        self.and_then(Real::recip)
-    }
-
-    #[cfg(feature = "std")]
-    fn mul_add(self, a: Self, b: Self) -> Self::Branch {
-        Real::mul_add(expression!(self), expression!(a), expression!(b))
+    fn recip(self) -> Self::Superset {
+        self.and_then(UnaryReal::recip)
     }
 
     #[cfg(feature = "std")]
-    fn div_euclid(self, n: Self) -> Self::Branch {
-        Real::div_euclid(expression!(self), expression!(n))
+    fn powi(self, n: i32) -> Self::Superset {
+        self.and_then(|defined| UnaryReal::powi(defined, n))
     }
 
     #[cfg(feature = "std")]
-    fn rem_euclid(self, n: Self) -> Self::Branch {
-        Real::rem_euclid(expression!(self), expression!(n))
-    }
-
-    #[cfg(feature = "std")]
-    fn powi(self, n: i32) -> Self::Branch {
-        self.and_then(|defined| Real::powi(defined, n))
-    }
-
-    #[cfg(feature = "std")]
-    fn powf(self, n: Self) -> Self::Branch {
-        Real::powf(expression!(self), expression!(n))
-    }
-
-    #[cfg(feature = "std")]
-    fn sqrt(self) -> Self::Branch {
-        self.and_then(Real::sqrt)
+    fn sqrt(self) -> Self::Superset {
+        self.and_then(UnaryReal::sqrt)
     }
 
     #[cfg(feature = "std")]
     fn cbrt(self) -> Self {
-        self.map(Real::cbrt)
+        self.map(UnaryReal::cbrt)
     }
 
     #[cfg(feature = "std")]
-    fn exp(self) -> Self::Branch {
-        self.and_then(Real::exp)
+    fn exp(self) -> Self::Superset {
+        self.and_then(UnaryReal::exp)
     }
 
     #[cfg(feature = "std")]
-    fn exp2(self) -> Self::Branch {
-        self.and_then(Real::exp2)
+    fn exp2(self) -> Self::Superset {
+        self.and_then(UnaryReal::exp2)
     }
 
     #[cfg(feature = "std")]
-    fn exp_m1(self) -> Self::Branch {
-        self.and_then(Real::exp_m1)
+    fn exp_m1(self) -> Self::Superset {
+        self.and_then(UnaryReal::exp_m1)
     }
 
     #[cfg(feature = "std")]
-    fn log(self, base: Self) -> Self {
-        Defined(Real::log(expression!(self), expression!(base)))
+    fn ln(self) -> Self::Superset {
+        self.and_then(UnaryReal::ln)
     }
 
     #[cfg(feature = "std")]
-    fn ln(self) -> Self {
-        self.map(Real::ln)
+    fn log2(self) -> Self::Superset {
+        self.and_then(UnaryReal::log2)
     }
 
     #[cfg(feature = "std")]
-    fn log2(self) -> Self {
-        self.map(Real::log2)
+    fn log10(self) -> Self::Superset {
+        self.and_then(UnaryReal::log10)
     }
 
     #[cfg(feature = "std")]
-    fn log10(self) -> Self {
-        self.map(Real::log10)
+    fn ln_1p(self) -> Self::Superset {
+        self.and_then(UnaryReal::ln_1p)
     }
 
     #[cfg(feature = "std")]
-    fn ln_1p(self) -> Self {
-        self.map(Real::ln_1p)
-    }
-
-    #[cfg(feature = "std")]
-    fn to_degrees(self) -> Self::Branch {
-        self.and_then(Real::to_degrees)
+    fn to_degrees(self) -> Self::Superset {
+        self.and_then(UnaryReal::to_degrees)
     }
 
     #[cfg(feature = "std")]
     fn to_radians(self) -> Self {
-        self.map(Real::to_radians)
-    }
-
-    #[cfg(feature = "std")]
-    fn hypot(self, other: Self) -> Self::Branch {
-        Real::hypot(expression!(self), expression!(other))
+        self.map(UnaryReal::to_radians)
     }
 
     #[cfg(feature = "std")]
     fn sin(self) -> Self {
-        self.map(Real::sin)
+        self.map(UnaryReal::sin)
     }
 
     #[cfg(feature = "std")]
     fn cos(self) -> Self {
-        self.map(Real::cos)
+        self.map(UnaryReal::cos)
     }
 
     #[cfg(feature = "std")]
-    fn tan(self) -> Self::Branch {
-        self.and_then(Real::tan)
+    fn tan(self) -> Self::Superset {
+        self.and_then(UnaryReal::tan)
     }
 
     #[cfg(feature = "std")]
-    fn asin(self) -> Self::Branch {
-        self.and_then(Real::asin)
+    fn asin(self) -> Self::Superset {
+        self.and_then(UnaryReal::asin)
     }
 
     #[cfg(feature = "std")]
-    fn acos(self) -> Self::Branch {
-        self.and_then(Real::acos)
+    fn acos(self) -> Self::Superset {
+        self.and_then(UnaryReal::acos)
     }
 
     #[cfg(feature = "std")]
     fn atan(self) -> Self {
-        self.map(Real::atan)
-    }
-
-    #[cfg(feature = "std")]
-    fn atan2(self, other: Self) -> Self {
-        Defined(Real::atan2(expression!(self), expression!(other)))
+        self.map(UnaryReal::atan)
     }
 
     #[cfg(feature = "std")]
@@ -688,44 +669,77 @@ where
                 let (sin, cos) = defined.sin_cos();
                 (Defined(sin), Defined(cos))
             }
-            _ => (self, self),
+            Undefined(undefined) => (Undefined(undefined.clone()), Undefined(undefined)),
         }
     }
 
     #[cfg(feature = "std")]
     fn sinh(self) -> Self {
-        self.map(Real::sinh)
+        self.map(UnaryReal::sinh)
     }
 
     #[cfg(feature = "std")]
     fn cosh(self) -> Self {
-        self.map(Real::cosh)
+        self.map(UnaryReal::cosh)
     }
 
     #[cfg(feature = "std")]
     fn tanh(self) -> Self {
-        self.map(Real::tanh)
+        self.map(UnaryReal::tanh)
     }
 
     #[cfg(feature = "std")]
-    fn asinh(self) -> Self::Branch {
-        self.and_then(Real::asinh)
+    fn asinh(self) -> Self::Superset {
+        self.and_then(UnaryReal::asinh)
     }
 
     #[cfg(feature = "std")]
-    fn acosh(self) -> Self::Branch {
-        self.and_then(Real::acosh)
+    fn acosh(self) -> Self::Superset {
+        self.and_then(UnaryReal::acosh)
     }
 
     #[cfg(feature = "std")]
-    fn atanh(self) -> Self::Branch {
-        self.and_then(Real::atanh)
+    fn atanh(self) -> Self::Superset {
+        self.and_then(UnaryReal::atanh)
     }
 }
 
-pub trait ExtendedReal: Infinite + Real {}
+impl<T, P> BinaryReal for ExpressionOf<Proxy<T, P>>
+where
+    ErrorOf<Proxy<T, P>>: Clone + UndefinedError,
+    T: Float + Primitive,
+    P: Constraint<Divergence = TryExpression>,
+{
+    #[cfg(feature = "std")]
+    fn div_euclid(self, n: Self) -> Self::Superset {
+        BinaryReal::div_euclid(expression!(self), expression!(n))
+    }
 
-impl<T> ExtendedReal for T where T: Infinite + Real {}
+    #[cfg(feature = "std")]
+    fn rem_euclid(self, n: Self) -> Self::Superset {
+        BinaryReal::rem_euclid(expression!(self), expression!(n))
+    }
+
+    #[cfg(feature = "std")]
+    fn pow(self, n: Self) -> Self::Superset {
+        BinaryReal::pow(expression!(self), expression!(n))
+    }
+
+    #[cfg(feature = "std")]
+    fn log(self, base: Self) -> Self::Superset {
+        BinaryReal::log(expression!(self), expression!(base))
+    }
+
+    #[cfg(feature = "std")]
+    fn hypot(self, other: Self) -> Self::Superset {
+        BinaryReal::hypot(expression!(self), expression!(other))
+    }
+
+    #[cfg(feature = "std")]
+    fn atan2(self, other: Self) -> Self::Superset {
+        BinaryReal::atan2(expression!(self), expression!(other))
+    }
+}
 
 fn _sanity() {
     use core::convert::TryInto;
@@ -737,14 +751,14 @@ fn _sanity() {
 
     fn f<T>(x: T) -> T
     where
-        T: Real<Branch = T> + TryInto<f32>,
+        T: Real<Superset = T> + TryInto<f32>,
     {
         -x
     }
 
     fn g<T>(x: T, y: T) -> T
     where
-        T: Real<Branch = T> + TryInto<f32>,
+        T: Real<Superset = T> + TryInto<f32>,
     {
         (x + T::ONE) * y
     }
@@ -761,9 +775,9 @@ fn _sanity() {
 /// **and directly expose the details of that encoding**, including infinities,
 /// `NaN`s, and operations on real numbers. This trait is implemented by
 /// primitive floating-point types and the `Total` proxy type.
-pub trait Float: Encoding + Infinite + IntrinsicOrd + Nan + Real<Branch = Self> {}
+pub trait Float: Encoding + Infinite + IntrinsicOrd + Nan + Real<Superset = Self> {}
 
-impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real<Branch = T> {}
+impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real<Superset = T> {}
 
 /// Primitive floating-point types.
 pub trait Primitive {}
@@ -794,9 +808,11 @@ macro_rules! impl_primitive {
 
         impl Primitive for $t {}
 
-        impl Real for $t {
-            type Branch = $t;
+        impl Codomain for $t {
+            type Superset = $t;
+        }
 
+        impl UnaryReal for $t {
             // TODO: The propagation from a constant in a module requires that
             //       this macro accept an `ident` token rather than a `ty`
             //       token. Use `ty` if these constants become associated
@@ -866,37 +882,17 @@ macro_rules! impl_primitive {
                 <$t>::fract(self)
             }
 
-            fn recip(self) -> Self::Branch {
+            fn recip(self) -> Self::Superset {
                 <$t>::recip(self)
             }
 
             #[cfg(feature = "std")]
-            fn mul_add(self, a: Self, b: Self) -> Self::Branch {
-                <$t>::mul_add(self, a, b)
-            }
-
-            #[cfg(feature = "std")]
-            fn div_euclid(self, n: Self) -> Self::Branch {
-                <$t>::div_euclid(self, n)
-            }
-
-            #[cfg(feature = "std")]
-            fn rem_euclid(self, n: Self) -> Self::Branch {
-                <$t>::rem_euclid(self, n)
-            }
-
-            #[cfg(feature = "std")]
-            fn powi(self, n: i32) -> Self::Branch {
+            fn powi(self, n: i32) -> Self::Superset {
                 <$t>::powi(self, n)
             }
 
             #[cfg(feature = "std")]
-            fn powf(self, n: Self) -> Self::Branch {
-                <$t>::powf(self, n)
-            }
-
-            #[cfg(feature = "std")]
-            fn sqrt(self) -> Self::Branch {
+            fn sqrt(self) -> Self::Superset {
                 <$t>::sqrt(self)
             }
 
@@ -906,58 +902,48 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn exp(self) -> Self::Branch {
+            fn exp(self) -> Self::Superset {
                 <$t>::exp(self)
             }
 
             #[cfg(feature = "std")]
-            fn exp2(self) -> Self::Branch {
+            fn exp2(self) -> Self::Superset {
                 <$t>::exp2(self)
             }
 
             #[cfg(feature = "std")]
-            fn exp_m1(self) -> Self::Branch {
+            fn exp_m1(self) -> Self::Superset {
                 <$t>::exp_m1(self)
             }
 
             #[cfg(feature = "std")]
-            fn log(self, base: Self) -> Self {
-                <$t>::log(self, base)
-            }
-
-            #[cfg(feature = "std")]
-            fn ln(self) -> Self {
+            fn ln(self) -> Self::Superset {
                 <$t>::ln(self)
             }
 
             #[cfg(feature = "std")]
-            fn log2(self) -> Self {
+            fn log2(self) -> Self::Superset {
                 <$t>::log2(self)
             }
 
             #[cfg(feature = "std")]
-            fn log10(self) -> Self {
+            fn log10(self) -> Self::Superset {
                 <$t>::log10(self)
             }
 
             #[cfg(feature = "std")]
-            fn ln_1p(self) -> Self {
+            fn ln_1p(self) -> Self::Superset {
                 <$t>::ln_1p(self)
             }
 
             #[cfg(feature = "std")]
-            fn to_degrees(self) -> Self::Branch {
+            fn to_degrees(self) -> Self::Superset {
                 <$t>::to_degrees(self)
             }
 
             #[cfg(feature = "std")]
             fn to_radians(self) -> Self {
                 <$t>::to_radians(self)
-            }
-
-            #[cfg(feature = "std")]
-            fn hypot(self, other: Self) -> Self::Branch {
-                <$t>::hypot(self, other)
             }
 
             #[cfg(feature = "std")]
@@ -971,28 +957,23 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn tan(self) -> Self::Branch {
+            fn tan(self) -> Self::Superset {
                 <$t>::tan(self)
             }
 
             #[cfg(feature = "std")]
-            fn asin(self) -> Self::Branch {
+            fn asin(self) -> Self::Superset {
                 <$t>::asin(self)
             }
 
             #[cfg(feature = "std")]
-            fn acos(self) -> Self::Branch {
+            fn acos(self) -> Self::Superset {
                 <$t>::acos(self)
             }
 
             #[cfg(feature = "std")]
             fn atan(self) -> Self {
                 <$t>::atan(self)
-            }
-
-            #[cfg(feature = "std")]
-            fn atan2(self, other: Self) -> Self {
-                <$t>::atan2(self, other)
             }
 
             #[cfg(feature = "std")]
@@ -1016,18 +997,50 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn asinh(self) -> Self::Branch {
+            fn asinh(self) -> Self::Superset {
                 <$t>::asinh(self)
             }
 
             #[cfg(feature = "std")]
-            fn acosh(self) -> Self::Branch {
+            fn acosh(self) -> Self::Superset {
                 <$t>::acosh(self)
             }
 
             #[cfg(feature = "std")]
-            fn atanh(self) -> Self::Branch {
+            fn atanh(self) -> Self::Superset {
                 <$t>::atanh(self)
+            }
+        }
+
+        impl BinaryReal<$t> for $t {
+            #[cfg(feature = "std")]
+            fn div_euclid(self, n: Self) -> Self::Superset {
+                <$t>::div_euclid(self, n)
+            }
+
+            #[cfg(feature = "std")]
+            fn rem_euclid(self, n: Self) -> Self::Superset {
+                <$t>::rem_euclid(self, n)
+            }
+
+            #[cfg(feature = "std")]
+            fn pow(self, n: Self) -> Self::Superset {
+                <$t>::powf(self, n)
+            }
+
+            #[cfg(feature = "std")]
+            fn log(self, base: Self) -> Self::Superset {
+                <$t>::log(self, base)
+            }
+
+            #[cfg(feature = "std")]
+            fn hypot(self, other: Self) -> Self::Superset {
+                <$t>::hypot(self, other)
+            }
+
+            #[cfg(feature = "std")]
+            fn atan2(self, other: Self) -> Self {
+                <$t>::atan2(self, other)
             }
         }
     };
