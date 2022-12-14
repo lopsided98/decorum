@@ -98,9 +98,9 @@ pub(crate) use num_traits::real::Real as ForeignReal;
 pub(crate) use num_traits::Float as ForeignFloat;
 
 use crate::cmp::IntrinsicOrd;
-use crate::constraint::{Constraint, FiniteConstraint, NotNanConstraint, UnitConstraint};
-use crate::divergence::{Assert, Defined, TryExpression};
-use crate::proxy::{ErrorOf, ExpressionOf};
+use crate::constraint::{FiniteConstraint, NotNanConstraint, UnitConstraint};
+use crate::divergence::{Assert, TryExpression};
+use crate::proxy::ExpressionOf;
 use crate::real::{BinaryReal, Codomain, Real, UnaryReal};
 
 pub use crate::constraint::ConstraintViolation;
@@ -116,6 +116,7 @@ pub type Total<T> = Proxy<T, UnitConstraint>;
 ///
 /// [`Total`]: crate::Total
 pub type NotNan<T, M = Assert> = Proxy<T, NotNanConstraint<M>>;
+pub type NotNanExpression<T> = ExpressionOf<NotNan<T, TryExpression>>;
 
 /// 32-bit floating-point representation that cannot be `NaN`.
 pub type N32 = NotNan<f32>;
@@ -129,6 +130,7 @@ pub type N64 = NotNan<f64>;
 ///
 /// [`Total`]: crate::Total
 pub type Finite<T, M = Assert> = Proxy<T, FiniteConstraint<M>>;
+pub type FiniteExpression<T> = ExpressionOf<Finite<T, TryExpression>>;
 
 /// 32-bit floating-point representation that must be a real number.
 ///
@@ -191,7 +193,7 @@ where
 }
 
 /// Floating-point representations that expose infinities.
-pub trait Infinite: Copy {
+pub trait Infinite: Sized {
     const INFINITY: Self;
     const NEG_INFINITY: Self;
 
@@ -199,33 +201,8 @@ pub trait Infinite: Copy {
     fn is_finite(self) -> bool;
 }
 
-impl<T, P> Infinite for ExpressionOf<Proxy<T, P>>
-where
-    ErrorOf<Proxy<T, P>>: Copy,
-    Proxy<T, P>: Infinite,
-    T: Float + Primitive,
-    P: Constraint<Divergence = TryExpression>,
-{
-    const INFINITY: Self = Defined(Infinite::INFINITY);
-    const NEG_INFINITY: Self = Defined(Infinite::NEG_INFINITY);
-
-    fn is_infinite(self) -> bool {
-        match self {
-            Defined(defined) => defined.is_infinite(),
-            _ => false,
-        }
-    }
-
-    fn is_finite(self) -> bool {
-        match self {
-            Defined(defined) => defined.is_finite(),
-            _ => false,
-        }
-    }
-}
-
 /// Floating-point representations that expose `NaN`s.
-pub trait Nan: Copy {
+pub trait Nan: Sized {
     /// A representation of `NaN`.
     ///
     /// For primitive floating-point types, `NaN` is incomparable. Therefore,
@@ -240,7 +217,7 @@ pub trait Nan: Copy {
 /// Provides values and operations that describe the encoding of an IEEE-754
 /// floating-point value. Infinities and `NaN`s are described by the `Infinite`
 /// and `NaN` sub-traits.
-pub trait Encoding: Copy {
+pub trait Encoding: Sized {
     const MAX_FINITE: Self;
     const MIN_FINITE: Self;
     const MIN_POSITIVE_NORMAL: Self;
@@ -327,34 +304,6 @@ impl Encoding for f64 {
     }
 }
 
-fn _sanity() {
-    use core::convert::TryInto;
-
-    type NotNanExpression<T> = ExpressionOf<NotNan<T, TryExpression>>;
-    type FiniteExpression<T> = ExpressionOf<Finite<T, TryExpression>>;
-
-    type R32 = FiniteExpression<f32>;
-
-    fn f<T>(x: T) -> T
-    where
-        T: Real<Superset = T> + TryInto<f32>,
-    {
-        -x
-    }
-
-    fn g<T, U>(x: T, y: U) -> T
-    where
-        T: BinaryReal<U, Superset = T> + Real + TryInto<f32>,
-    {
-        (x + T::ONE) * y
-    }
-
-    let x = R32::from(0.0f32);
-    let y = g(f(x), 2.0f32);
-    let z = f(1.0f32);
-    let _w = f(y + z);
-}
-
 /// Floating-point representations.
 ///
 /// Types that implement this trait are represented using IEEE-754 encoding
@@ -366,7 +315,39 @@ pub trait Float: Encoding + Infinite + IntrinsicOrd + Nan + Real<Superset = Self
 impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real<Superset = T> {}
 
 /// Primitive floating-point types.
-pub trait Primitive {}
+pub trait Primitive: Copy {}
+
+fn _sanity() {
+    use crate::real::FloatEndoreal;
+
+    type R64 = FiniteExpression<f64>;
+
+    fn f<T>(x: T) -> T
+    where
+        T: FloatEndoreal<f64>,
+    {
+        -x
+    }
+
+    fn g<T, U>(x: T, y: U) -> T
+    where
+        T: BinaryReal<U> + FloatEndoreal<f64>,
+    {
+        (x + T::ONE) * y
+    }
+
+    fn h<T>(x: T, y: T) -> T
+    where
+        T: FloatEndoreal<f64>,
+    {
+        x + y
+    }
+
+    let x = R64::ONE;
+    let y = g(f(x), 2.0);
+    let z = h(y, 1.0.into());
+    let _w = f(y + z);
+}
 
 macro_rules! with_primitives {
     ($f:ident) => {

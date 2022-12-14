@@ -1,7 +1,8 @@
+use std::convert::{TryFrom, TryInto};
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 use crate::cmp::IntrinsicOrd;
-use crate::Infinite;
+use crate::{Float, Infinite, Primitive};
 
 pub trait Codomain {
     type Superset;
@@ -144,3 +145,29 @@ impl<T> Real for T where T: BinaryReal<T> {}
 pub trait ExtendedReal: Infinite + Real {}
 
 impl<T> ExtendedReal for T where T: Infinite + Real {}
+
+pub trait FloatReal<T>: BinaryReal<T> + Real + TryFrom<T> + TryInto<T>
+where
+    T: Float + Primitive,
+{
+}
+
+impl<T, U> FloatReal<T> for U
+where
+    T: Float + Primitive,
+    U: BinaryReal<T> + Real + TryFrom<T> + TryInto<T>,
+{
+}
+
+pub trait FloatEndoreal<T>: Endofunction + FloatReal<T> + From<T>
+where
+    T: Float + Primitive,
+{
+}
+
+impl<T, U> FloatEndoreal<T> for U
+where
+    T: Float + Primitive,
+    U: Endofunction + FloatReal<T> + From<T>,
+{
+}

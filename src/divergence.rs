@@ -9,8 +9,11 @@ use crate::cmp::UndefinedError;
 use crate::constraint::{Constraint, ExpectConstrained as _};
 use crate::proxy::{ClosedProxy, ErrorOf, ExpressionOf, Proxy};
 use crate::{
-    with_binary_operations, with_primitives, BinaryReal, Codomain, Float, Primitive, UnaryReal,
+    with_binary_operations, with_primitives, BinaryReal, Codomain, Float, Infinite, Primitive,
+    UnaryReal,
 };
+
+pub use crate::proxy::BranchOf;
 
 pub use Expression::Defined;
 pub use Expression::Undefined;
@@ -362,6 +365,31 @@ impl<T, E> FromResidual for Expression<T, E> {
         match error {
             Err(error) => Undefined(error),
             _ => unreachable!(),
+        }
+    }
+}
+
+impl<T, P> Infinite for ExpressionOf<Proxy<T, P>>
+where
+    ErrorOf<Proxy<T, P>>: Copy,
+    Proxy<T, P>: Infinite,
+    T: Float + Primitive,
+    P: Constraint<Divergence = TryExpression>,
+{
+    const INFINITY: Self = Defined(Infinite::INFINITY);
+    const NEG_INFINITY: Self = Defined(Infinite::NEG_INFINITY);
+
+    fn is_infinite(self) -> bool {
+        match self {
+            Defined(defined) => defined.is_infinite(),
+            _ => false,
+        }
+    }
+
+    fn is_finite(self) -> bool {
+        match self {
+            Defined(defined) => defined.is_finite(),
+            _ => false,
         }
     }
 }
