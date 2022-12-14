@@ -67,7 +67,7 @@ use core::cmp::Ordering;
 use crate::constraint::Constraint;
 use crate::error::{Defined, Expression, Undefined};
 use crate::proxy::Proxy;
-use crate::{Float, Nan, Primitive, ToCanonicalBits};
+use crate::{with_primitives, Float, Nan, Primitive, ToCanonicalBits};
 
 /// Equivalence relation for floating-point primitives.
 ///
@@ -362,8 +362,22 @@ where
     }
 }
 
-macro_rules! impl_intrinsic_ord {
-    (total => $t:ty) => {
+macro_rules! impl_total_intrinsic_ord {
+    () => {
+        impl_total_intrinsic_ord!(primitive => isize);
+        impl_total_intrinsic_ord!(primitive => i8);
+        impl_total_intrinsic_ord!(primitive => i16);
+        impl_total_intrinsic_ord!(primitive => i32);
+        impl_total_intrinsic_ord!(primitive => i64);
+        impl_total_intrinsic_ord!(primitive => i128);
+        impl_total_intrinsic_ord!(primitive => usize);
+        impl_total_intrinsic_ord!(primitive => u8);
+        impl_total_intrinsic_ord!(primitive => u16);
+        impl_total_intrinsic_ord!(primitive => u32);
+        impl_total_intrinsic_ord!(primitive => u64);
+        impl_total_intrinsic_ord!(primitive => u128);
+    };
+    (primitive => $t:ty) => {
         impl IntrinsicOrd for $t {
             fn is_undefined(&self) -> bool {
                 false
@@ -375,7 +389,14 @@ macro_rules! impl_intrinsic_ord {
             }
         }
     };
-    (partial_nan => $t:ty) => {
+}
+impl_total_intrinsic_ord!();
+
+macro_rules! impl_float_intrinsic_ord {
+    () => {
+        with_primitives!(impl_float_intrinsic_ord);
+    };
+    (primitive => $t:ty) => {
         impl IntrinsicOrd for $t {
             fn is_undefined(&self) -> bool {
                 self.is_nan()
@@ -392,20 +413,7 @@ macro_rules! impl_intrinsic_ord {
         }
     };
 }
-impl_intrinsic_ord!(total => isize);
-impl_intrinsic_ord!(total => i8);
-impl_intrinsic_ord!(total => i16);
-impl_intrinsic_ord!(total => i32);
-impl_intrinsic_ord!(total => i64);
-impl_intrinsic_ord!(total => i128);
-impl_intrinsic_ord!(total => usize);
-impl_intrinsic_ord!(total => u8);
-impl_intrinsic_ord!(total => u16);
-impl_intrinsic_ord!(total => u32);
-impl_intrinsic_ord!(total => u64);
-impl_intrinsic_ord!(total => u128);
-impl_intrinsic_ord!(partial_nan => f32);
-impl_intrinsic_ord!(partial_nan => f64);
+impl_float_intrinsic_ord!();
 
 /// Partial maximum of types with intrinsic representations for undefined.
 ///

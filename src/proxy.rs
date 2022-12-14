@@ -31,8 +31,8 @@ use crate::hash::FloatHash;
 #[cfg(feature = "std")]
 use crate::ForeignReal;
 use crate::{
-    expression, BinaryReal, Codomain, Encoding, Finite, Float, ForeignFloat, Infinite, Nan, NotNan,
-    Primitive, ToCanonicalBits, Total, UnaryReal,
+    with_binary_operations, with_primitives, BinaryReal, Codomain, Encoding, Finite, Float,
+    ForeignFloat, Infinite, Nan, NotNan, Primitive, ToCanonicalBits, Total, UnaryReal,
 };
 
 pub type BranchOf<T> = <DivergenceOf<T> as Divergence>::Branch<T, ErrorOf<T>>;
@@ -356,21 +356,21 @@ where
         })
     }
 
-    fn map<F>(self, mut f: F) -> BranchOf<Self>
+    pub(crate) fn map<F>(self, mut f: F) -> BranchOf<Self>
     where
         F: FnMut(T) -> T,
     {
         Self::new(f(self.into_inner()))
     }
 
-    fn map_unchecked<F>(self, mut f: F) -> Self
+    pub(crate) fn map_unchecked<F>(self, mut f: F) -> Self
     where
         F: FnMut(T) -> T,
     {
         Proxy::unchecked(f(self.into_inner()))
     }
 
-    fn zip_map<Q, F>(self, other: Proxy<T, Q>, mut f: F) -> BranchOf<Self>
+    pub(crate) fn zip_map<Q, F>(self, other: Proxy<T, Q>, mut f: F) -> BranchOf<Self>
     where
         Q: Constraint,
         F: FnMut(T, T) -> T,
@@ -378,7 +378,7 @@ where
         Self::new(f(self.into_inner(), other.into_inner()))
     }
 
-    fn zip_map_unchecked<Q, F>(self, other: Proxy<T, Q>, mut f: F) -> Self
+    pub(crate) fn zip_map_unchecked<Q, F>(self, other: Proxy<T, Q>, mut f: F) -> Self
     where
         Q: Constraint,
         F: FnMut(T, T) -> T,
@@ -1967,94 +1967,36 @@ where
     }
 }
 
-macro_rules! impl_binary_expression {
+macro_rules! impl_binary_operation {
+    () => {
+        with_binary_operations!(impl_binary_operation);
+    };
+    (operation => $trait:ident :: $method:ident) => {
+        impl_binary_operation!(operation => $trait :: $method, |left, right| {
+            right.map(|inner| $trait::$method(left, inner))
+        });
+    };
     (operation => $trait:ident :: $method:ident, |$left:ident, $right:ident| $f:block) => {
-        impl<T, P> $trait<ExpressionOf<Self>> for Proxy<T, P>
-        where
-            T: Float + Primitive,
-            P: Constraint<Divergence = TryExpression>,
-        {
-            type Output = ExpressionOf<Self>;
+        macro_rules! impl_primitive_binary_operation {
+            (primitive => $t:ty) => {
+                impl<P> $trait<Proxy<$t, P>> for $t
+                where
+                    P: Constraint,
+                {
+                    type Output = BranchOf<Proxy<$t, P>>;
 
-            fn $method(self, other: ExpressionOf<Self>) -> Self::Output {
-                let $left = self;
-                let $right = expression!(other);
-                $f
-            }
+                    fn $method(self, other: Proxy<$t, P>) -> Self::Output {
+                        let $left = self;
+                        let $right = other;
+                        $f
+                    }
+                }
+            };
         }
-
-        impl<T, P> $trait<Proxy<T, P>> for ExpressionOf<Proxy<T, P>>
-        where
-            T: Float + Primitive,
-            P: Constraint<Divergence = TryExpression>,
-        {
-            type Output = Self;
-
-            fn $method(self, other: Proxy<T, P>) -> Self::Output {
-                let $left = expression!(self);
-                let $right = other;
-                $f
-            }
-        }
-
-        impl<T, P> $trait<ExpressionOf<Proxy<T, P>>> for ExpressionOf<Proxy<T, P>>
-        where
-            T: Float + Primitive,
-            P: Constraint<Divergence = TryExpression>,
-        {
-            type Output = Self;
-
-            fn $method(self, other: Self) -> Self::Output {
-                let $left = expression!(self);
-                let $right = expression!(other);
-                $f
-            }
-        }
-
-        // TODO: Implement these traits for all primitives, not only `f32`.
-
-        impl<P> $trait<ExpressionOf<Proxy<f32, P>>> for f32
-        where
-            P: Constraint<Divergence = TryExpression>,
-        {
-            type Output = ExpressionOf<Proxy<f32, P>>;
-
-            fn $method(self, other: ExpressionOf<Proxy<f32, P>>) -> Self::Output {
-                let $left = expression!(Proxy::<_, P>::new(self));
-                let $right = expression!(other);
-                $f
-            }
-        }
-
-        impl<P> $trait<f32> for ExpressionOf<Proxy<f32, P>>
-        where
-            P: Constraint<Divergence = TryExpression>,
-        {
-            type Output = Self;
-
-            fn $method(self, other: f32) -> Self::Output {
-                let $left = expression!(self);
-                let $right = expression!(Proxy::<_, P>::new(other));
-                $f
-            }
-        }
+        with_primitives!(impl_primitive_binary_operation);
     };
 }
-impl_binary_expression!(operation => Add::add, |left, right| {
-    left.zip_map(right, Add::add)
-});
-impl_binary_expression!(operation => Div::div, |left, right| {
-    left.zip_map(right, Div::div)
-});
-impl_binary_expression!(operation => Mul::mul, |left, right| {
-    left.zip_map(right, Mul::mul)
-});
-impl_binary_expression!(operation => Rem::rem, |left, right| {
-    left.zip_map(right, Rem::rem)
-});
-impl_binary_expression!(operation => Sub::sub, |left, right| {
-    left.zip_map(right, Sub::sub)
-});
+impl_binary_operation!();
 
 /// Implements the `Real` trait from
 /// [`num-traits`](https://crates.io/crates/num-traits) in terms of Decorum's
@@ -2070,9 +2012,12 @@ impl_binary_expression!(operation => Sub::sub, |left, right| {
 ///   https://github.com/olson-sean-k/decorum/issues/10
 ///   https://github.com/rust-num/num-traits/issues/49
 macro_rules! impl_foreign_real {
-    (proxy => $p:ident) => {
-        impl_foreign_real!(proxy => $p, primitive => f32);
-        impl_foreign_real!(proxy => $p, primitive => f64);
+    () => {
+        with_primitives!(impl_foreign_real);
+    };
+    (primitive => $t:ty) => {
+        impl_foreign_real!(proxy => Finite, primitive => $t);
+        impl_foreign_real!(proxy => NotNan, primitive => $t);
     };
     (proxy => $p:ident, primitive => $t:ty) => {
         #[cfg(feature = "std")]
@@ -2269,16 +2214,18 @@ macro_rules! impl_foreign_real {
         }
     };
 }
-impl_foreign_real!(proxy => Finite);
-impl_foreign_real!(proxy => NotNan);
+impl_foreign_real!();
 
 // `TryFrom` cannot be implemented over an open type `T` and cannot be
 // implemented for general constraints, because it would conflict with the
 // `From` implementation for `Total`.
 macro_rules! impl_try_from {
-    (proxy => $p:ident) => {
-        impl_try_from!(proxy => $p, primitive => f32);
-        impl_try_from!(proxy => $p, primitive => f64);
+    () => {
+        with_primitives!(impl_try_from);
+    };
+    (primitive => $t:ty) => {
+        impl_try_from!(proxy => Finite, primitive => $t);
+        impl_try_from!(proxy => NotNan, primitive => $t);
     };
     (proxy => $p:ident, primitive => $t:ty) => {
         impl<M> TryFrom<$t> for $p<$t, M>
@@ -2327,8 +2274,7 @@ macro_rules! impl_try_from {
         }
     };
 }
-impl_try_from!(proxy => Finite);
-impl_try_from!(proxy => NotNan);
+impl_try_from!();
 
 #[cfg(test)]
 mod tests {
@@ -2417,7 +2363,7 @@ mod tests {
     #[allow(clippy::zero_divided_by_zero)]
     fn notnan_panic_from_nan_slice() {
         let xs = [1.0f64, 0.0f64 / 0.0];
-        let _ = NotNan::try_from_slice(&xs).unwrap();
+        let _ = NotNan::<f64>::try_from_slice(&xs).unwrap();
     }
 
     #[test]
@@ -2452,7 +2398,7 @@ mod tests {
     #[should_panic]
     fn finite_panic_from_inf_slice() {
         let xs = [1.0f64, 1.0f64 / 0.0];
-        let _ = Finite::try_from_slice(&xs).unwrap();
+        let _ = Finite::<f64>::try_from_slice(&xs).unwrap();
     }
 
     #[test]
@@ -2469,7 +2415,7 @@ mod tests {
 
         #[cfg(feature = "std")]
         {
-            let w: Total<f32> = (UnaryReal::sqrt(-1.0)).into();
+            let w: Total<f32> = (UnaryReal::sqrt(-1.0f32)).into();
             assert_eq!(x, w);
         }
     }
