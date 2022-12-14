@@ -26,7 +26,7 @@ use crate::constraint::{
     Constraint, ConstraintViolation, ExpectConstrained, InfinitySet, Member, NanSet, SubsetOf,
     SupersetOf,
 };
-use crate::error::{Divergence, Expression, NonResidual, TryExpression};
+use crate::divergence::{Divergence, Expression, NonResidual, TryExpression};
 use crate::hash::FloatHash;
 #[cfg(feature = "std")]
 use crate::ForeignReal;

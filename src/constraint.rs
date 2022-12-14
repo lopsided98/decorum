@@ -10,7 +10,7 @@ use core::marker::PhantomData;
 use thiserror::Error;
 
 use crate::cmp::UndefinedError;
-use crate::error::Divergence;
+use crate::divergence::Divergence;
 use crate::{Float, Primitive};
 
 const VIOLATION_MESSAGE: &str = "floating-point constraint violated";
