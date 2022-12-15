@@ -257,7 +257,7 @@ pub trait IntrinsicOrd: PartialOrd + Sized {
 
 impl<T, E> IntrinsicOrd for Expression<T, E>
 where
-    T: Clone + IntrinsicOrd,
+    T: IntrinsicOrd,
     E: UndefinedError,
 {
     fn is_undefined(&self) -> bool {
@@ -273,7 +273,7 @@ where
                     undefined()
                 }
                 else {
-                    (Defined(min.clone()), Defined(max.clone()))
+                    (Defined(min), Defined(max))
                 }
             }
             _ => undefined(),
@@ -283,7 +283,7 @@ where
 
 impl<T> IntrinsicOrd for Option<T>
 where
-    T: Clone + IntrinsicOrd,
+    T: IntrinsicOrd,
 {
     fn is_undefined(&self) -> bool {
         self.is_none()
@@ -298,7 +298,7 @@ where
                     undefined
                 }
                 else {
-                    (Some(min.clone()), Some(max.clone()))
+                    (Some(min), Some(max))
                 }
             }
             _ => undefined,
@@ -338,7 +338,7 @@ where
 impl<T, E> IntrinsicOrd for Result<T, E>
 where
     Self: PartialOrd,
-    T: Clone + IntrinsicOrd,
+    T: IntrinsicOrd,
     E: UndefinedError,
 {
     fn is_undefined(&self) -> bool {
@@ -354,7 +354,7 @@ where
                     undefined()
                 }
                 else {
-                    (Ok(min.clone()), Ok(max.clone()))
+                    (Ok(min), Ok(max))
                 }
             }
             _ => undefined(),
