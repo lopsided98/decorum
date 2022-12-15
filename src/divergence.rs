@@ -185,16 +185,16 @@ impl<T, E> Expression<T, E> {
         }
     }
 
-    pub fn defined(self) -> Option<T> {
+    pub fn defined(&self) -> Option<&T> {
         match self {
-            Defined(defined) => Some(defined),
+            Defined(ref defined) => Some(defined),
             _ => None,
         }
     }
 
-    pub fn undefined(self) -> Option<E> {
+    pub fn undefined(&self) -> Option<&E> {
         match self {
-            Undefined(undefined) => Some(undefined),
+            Undefined(ref undefined) => Some(undefined),
             _ => None,
         }
     }
@@ -405,17 +405,12 @@ where
     const NEG_INFINITY: Self = Defined(Infinite::NEG_INFINITY);
 
     fn is_infinite(self) -> bool {
-        match self {
-            Defined(defined) => defined.is_infinite(),
-            _ => false,
-        }
+        self.defined()
+            .map_or(false, |defined| defined.is_infinite())
     }
 
     fn is_finite(self) -> bool {
-        match self {
-            Defined(defined) => defined.is_finite(),
-            _ => false,
-        }
+        self.defined().map_or(false, |defined| defined.is_finite())
     }
 }
 
@@ -424,10 +419,9 @@ where
     T: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Defined(ref left), Defined(ref right)) => left.eq(right),
-            _ => false,
-        }
+        self.defined()
+            .zip(other.defined())
+            .map_or(false, |(left, right)| left.eq(right))
     }
 }
 
@@ -436,10 +430,9 @@ where
     T: PartialOrd,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self, other) {
-            (Defined(ref left), Defined(ref right)) => left.partial_cmp(right),
-            _ => None,
-        }
+        self.defined()
+            .zip(other.defined())
+            .and_then(|(left, right)| left.partial_cmp(right))
     }
 }
 
@@ -486,31 +479,21 @@ where
     const LOG10_E: Self = Defined(UnaryReal::LOG10_E);
 
     fn is_zero(self) -> bool {
-        match self.defined() {
-            Some(defined) => defined.is_zero(),
-            _ => false,
-        }
+        self.defined().map_or(false, |defined| defined.is_zero())
     }
 
     fn is_one(self) -> bool {
-        match self.defined() {
-            Some(defined) => defined.is_one(),
-            _ => false,
-        }
+        self.defined().map_or(false, |defined| defined.is_one())
     }
 
     fn is_positive(self) -> bool {
-        match self.defined() {
-            Some(defined) => defined.is_positive(),
-            _ => false,
-        }
+        self.defined()
+            .map_or(false, |defined| defined.is_positive())
     }
 
     fn is_negative(self) -> bool {
-        match self.defined() {
-            Some(defined) => defined.is_negative(),
-            _ => false,
-        }
+        self.defined()
+            .map_or(false, |defined| defined.is_negative())
     }
 
     #[cfg(feature = "std")]
