@@ -306,10 +306,10 @@ where
     }
 }
 
-impl<T, P> IntrinsicOrd for Proxy<T, P>
+impl<T, C> IntrinsicOrd for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn is_undefined(&self) -> bool {
         self.into_inner().is_nan()
@@ -326,11 +326,11 @@ where
             // `IntrinsicOrd` for `T`. For constrained (and nonresidual) types
             // like `NotNan` and `Finite`, `a` and `b` must not be undefined
             // (`NaN`) and so `min` and `max` also must not be undefined.
-            let nan = Proxy::<_, P>::unchecked(T::NAN);
+            let nan = Proxy::<_, C>::unchecked(T::NAN);
             (nan, nan)
         }
         else {
-            (Proxy::<_, P>::unchecked(min), Proxy::<_, P>::unchecked(max))
+            (Proxy::<_, C>::unchecked(min), Proxy::<_, C>::unchecked(max))
         }
     }
 }

@@ -55,16 +55,16 @@ impl Divergence for Infallible {
     }
 }
 
-pub trait NonResidual<T>: Divergence<Branch<T, ErrorOf<T>> = T>
+pub trait NonResidual<P>: Divergence<Branch<P, ErrorOf<P>> = P>
 where
-    T: ClosedProxy,
+    P: ClosedProxy,
 {
 }
 
-impl<T, M> NonResidual<T> for M
+impl<P, D> NonResidual<P> for D
 where
-    T: ClosedProxy,
-    M: Divergence<Branch<T, ErrorOf<T>> = T>,
+    P: ClosedProxy,
+    D: Divergence<Branch<P, ErrorOf<P>> = P>,
 {
 }
 
@@ -201,11 +201,11 @@ impl<T, E> Expression<T, E> {
     }
 }
 
-impl<T, P> BinaryReal for ExpressionOf<Proxy<T, P>>
+impl<T, C> BinaryReal for ExpressionOf<Proxy<T, C>>
 where
-    ErrorOf<Proxy<T, P>>: Clone + UndefinedError,
+    ErrorOf<Proxy<T, C>>: Clone + UndefinedError,
     T: Float + Primitive,
-    P: Constraint<Divergence = TryExpression>,
+    C: Constraint<Divergence = TryExpression>,
 {
     #[cfg(feature = "std")]
     fn div_euclid(self, n: Self) -> Self::Superset {
@@ -238,105 +238,105 @@ where
     }
 }
 
-impl<T, P> BinaryReal<T> for ExpressionOf<Proxy<T, P>>
+impl<T, C> BinaryReal<T> for ExpressionOf<Proxy<T, C>>
 where
-    ErrorOf<Proxy<T, P>>: Clone + UndefinedError,
+    ErrorOf<Proxy<T, C>>: Clone + UndefinedError,
     T: Float + Primitive,
-    P: Constraint<Divergence = TryExpression>,
+    C: Constraint<Divergence = TryExpression>,
 {
     #[cfg(feature = "std")]
     fn div_euclid(self, n: T) -> Self::Superset {
-        BinaryReal::div_euclid(expression!(self), expression!(Proxy::<T, P>::new(n)))
+        BinaryReal::div_euclid(expression!(self), expression!(Proxy::<T, C>::new(n)))
     }
 
     #[cfg(feature = "std")]
     fn rem_euclid(self, n: T) -> Self::Superset {
-        BinaryReal::rem_euclid(expression!(self), expression!(Proxy::<T, P>::new(n)))
+        BinaryReal::rem_euclid(expression!(self), expression!(Proxy::<T, C>::new(n)))
     }
 
     #[cfg(feature = "std")]
     fn pow(self, n: T) -> Self::Superset {
-        BinaryReal::pow(expression!(self), expression!(Proxy::<T, P>::new(n)))
+        BinaryReal::pow(expression!(self), expression!(Proxy::<T, C>::new(n)))
     }
 
     #[cfg(feature = "std")]
     fn log(self, base: T) -> Self::Superset {
-        BinaryReal::log(expression!(self), expression!(Proxy::<T, P>::new(base)))
+        BinaryReal::log(expression!(self), expression!(Proxy::<T, C>::new(base)))
     }
 
     #[cfg(feature = "std")]
     fn hypot(self, other: T) -> Self::Superset {
-        BinaryReal::hypot(expression!(self), expression!(Proxy::<T, P>::new(other)))
+        BinaryReal::hypot(expression!(self), expression!(Proxy::<T, C>::new(other)))
     }
 
     #[cfg(feature = "std")]
     fn atan2(self, other: T) -> Self::Superset {
-        BinaryReal::atan2(expression!(self), expression!(Proxy::<T, P>::new(other)))
+        BinaryReal::atan2(expression!(self), expression!(Proxy::<T, C>::new(other)))
     }
 }
 
-impl<T, P> BinaryReal<Proxy<T, P>> for ExpressionOf<Proxy<T, P>>
+impl<T, C> BinaryReal<Proxy<T, C>> for ExpressionOf<Proxy<T, C>>
 where
-    ErrorOf<Proxy<T, P>>: Clone + UndefinedError,
+    ErrorOf<Proxy<T, C>>: Clone + UndefinedError,
     T: Float + Primitive,
-    P: Constraint<Divergence = TryExpression>,
+    C: Constraint<Divergence = TryExpression>,
 {
     #[cfg(feature = "std")]
-    fn div_euclid(self, n: Proxy<T, P>) -> Self::Superset {
+    fn div_euclid(self, n: Proxy<T, C>) -> Self::Superset {
         BinaryReal::div_euclid(expression!(self), n)
     }
 
     #[cfg(feature = "std")]
-    fn rem_euclid(self, n: Proxy<T, P>) -> Self::Superset {
+    fn rem_euclid(self, n: Proxy<T, C>) -> Self::Superset {
         BinaryReal::rem_euclid(expression!(self), n)
     }
 
     #[cfg(feature = "std")]
-    fn pow(self, n: Proxy<T, P>) -> Self::Superset {
+    fn pow(self, n: Proxy<T, C>) -> Self::Superset {
         BinaryReal::pow(expression!(self), n)
     }
 
     #[cfg(feature = "std")]
-    fn log(self, base: Proxy<T, P>) -> Self::Superset {
+    fn log(self, base: Proxy<T, C>) -> Self::Superset {
         BinaryReal::log(expression!(self), base)
     }
 
     #[cfg(feature = "std")]
-    fn hypot(self, other: Proxy<T, P>) -> Self::Superset {
+    fn hypot(self, other: Proxy<T, C>) -> Self::Superset {
         BinaryReal::hypot(expression!(self), other)
     }
 
     #[cfg(feature = "std")]
-    fn atan2(self, other: Proxy<T, P>) -> Self::Superset {
+    fn atan2(self, other: Proxy<T, C>) -> Self::Superset {
         BinaryReal::atan2(expression!(self), other)
     }
 }
 
-impl<T, P> Codomain for ExpressionOf<Proxy<T, P>>
+impl<T, C> Codomain for ExpressionOf<Proxy<T, C>>
 where
-    ErrorOf<Proxy<T, P>>: UndefinedError,
+    ErrorOf<Proxy<T, C>>: UndefinedError,
     T: Float + Primitive,
-    P: Constraint<Divergence = TryExpression>,
+    C: Constraint<Divergence = TryExpression>,
 {
     type Superset = Self;
 }
 
-impl<T, P> From<T> for Expression<Proxy<T, P>, ErrorOf<Proxy<T, P>>>
+impl<T, C> From<T> for Expression<Proxy<T, C>, ErrorOf<Proxy<T, C>>>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn from(inner: T) -> Self {
         Proxy::try_new(inner).into()
     }
 }
 
-impl<T, P> From<Proxy<T, P>> for Expression<Proxy<T, P>, ErrorOf<Proxy<T, P>>>
+impl<T, C> From<Proxy<T, C>> for Expression<Proxy<T, C>, ErrorOf<Proxy<T, C>>>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
-    fn from(proxy: Proxy<T, P>) -> Self {
+    fn from(proxy: Proxy<T, C>) -> Self {
         Defined(proxy)
     }
 }
@@ -369,12 +369,12 @@ impl<T, E> FromResidual for Expression<T, E> {
     }
 }
 
-impl<T, P> Infinite for ExpressionOf<Proxy<T, P>>
+impl<T, C> Infinite for ExpressionOf<Proxy<T, C>>
 where
-    ErrorOf<Proxy<T, P>>: Copy,
-    Proxy<T, P>: Infinite,
+    ErrorOf<Proxy<T, C>>: Copy,
+    Proxy<T, C>: Infinite,
     T: Float + Primitive,
-    P: Constraint<Divergence = TryExpression>,
+    C: Constraint<Divergence = TryExpression>,
 {
     const INFINITY: Self = Defined(Infinite::INFINITY);
     const NEG_INFINITY: Self = Defined(Infinite::NEG_INFINITY);
@@ -435,11 +435,11 @@ impl<T, E> Try for Expression<T, E> {
     }
 }
 
-impl<T, P> UnaryReal for ExpressionOf<Proxy<T, P>>
+impl<T, C> UnaryReal for ExpressionOf<Proxy<T, C>>
 where
-    ErrorOf<Proxy<T, P>>: Clone + UndefinedError,
+    ErrorOf<Proxy<T, C>>: Clone + UndefinedError,
     T: Float + Primitive,
-    P: Constraint<Divergence = TryExpression>,
+    C: Constraint<Divergence = TryExpression>,
 {
     const ZERO: Self = Defined(UnaryReal::ZERO);
     const ONE: Self = Defined(UnaryReal::ONE);
@@ -669,14 +669,14 @@ macro_rules! impl_binary_operation {
                 with_primitives!(impl_primitive_binary_operation);
             };
             (primitive => $t:ty) => {
-                impl<P> $trait<ExpressionOf<Proxy<$t, P>>> for $t
+                impl<C> $trait<ExpressionOf<Proxy<$t, C>>> for $t
                 where
-                    P: Constraint<Divergence = TryExpression>,
+                    C: Constraint<Divergence = TryExpression>,
                 {
-                    type Output = ExpressionOf<Proxy<$t, P>>;
+                    type Output = ExpressionOf<Proxy<$t, C>>;
 
-                    fn $method(self, other: ExpressionOf<Proxy<$t, P>>) -> Self::Output {
-                        let $left = expression!(Proxy::<_, P>::new(self));
+                    fn $method(self, other: ExpressionOf<Proxy<$t, C>>) -> Self::Output {
+                        let $left = expression!(Proxy::<_, C>::new(self));
                         let $right = expression!(other);
                         $f
                     }
@@ -685,10 +685,10 @@ macro_rules! impl_binary_operation {
         }
         impl_primitive_binary_operation!();
 
-        impl<T, P> $trait<ExpressionOf<Self>> for Proxy<T, P>
+        impl<T, C> $trait<ExpressionOf<Self>> for Proxy<T, C>
         where
             T: Float + Primitive,
-            P: Constraint<Divergence = TryExpression>,
+            C: Constraint<Divergence = TryExpression>,
         {
             type Output = ExpressionOf<Self>;
 
@@ -699,24 +699,24 @@ macro_rules! impl_binary_operation {
             }
         }
 
-        impl<T, P> $trait<Proxy<T, P>> for ExpressionOf<Proxy<T, P>>
+        impl<T, C> $trait<Proxy<T, C>> for ExpressionOf<Proxy<T, C>>
         where
             T: Float + Primitive,
-            P: Constraint<Divergence = TryExpression>,
+            C: Constraint<Divergence = TryExpression>,
         {
             type Output = Self;
 
-            fn $method(self, other: Proxy<T, P>) -> Self::Output {
+            fn $method(self, other: Proxy<T, C>) -> Self::Output {
                 let $left = expression!(self);
                 let $right = other;
                 $f
             }
         }
 
-        impl<T, P> $trait<ExpressionOf<Proxy<T, P>>> for ExpressionOf<Proxy<T, P>>
+        impl<T, C> $trait<ExpressionOf<Proxy<T, C>>> for ExpressionOf<Proxy<T, C>>
         where
             T: Float + Primitive,
-            P: Constraint<Divergence = TryExpression>,
+            C: Constraint<Divergence = TryExpression>,
         {
             type Output = Self;
 
@@ -727,16 +727,16 @@ macro_rules! impl_binary_operation {
             }
         }
 
-        impl<T, P> $trait<T> for ExpressionOf<Proxy<T, P>>
+        impl<T, C> $trait<T> for ExpressionOf<Proxy<T, C>>
         where
             T: Float + Primitive,
-            P: Constraint<Divergence = TryExpression>,
+            C: Constraint<Divergence = TryExpression>,
         {
             type Output = Self;
 
             fn $method(self, other: T) -> Self::Output {
                 let $left = expression!(self);
-                let $right = expression!(Proxy::<_, P>::new(other));
+                let $right = expression!(Proxy::<_, C>::new(other));
                 $f
             }
         }
@@ -749,14 +749,14 @@ macro_rules! impl_try_from {
         with_primitives!(impl_try_from);
     };
     (primitive => $t:ty) => {
-        impl<P> TryFrom<Expression<Proxy<$t, P>, P::Error>> for Proxy<$t, P>
+        impl<C> TryFrom<Expression<Proxy<$t, C>, C::Error>> for Proxy<$t, C>
         where
-            P: Constraint,
+            C: Constraint,
         {
-            type Error = P::Error;
+            type Error = C::Error;
 
             fn try_from(
-                expression: Expression<Proxy<$t, P>, P::Error>,
+                expression: Expression<Proxy<$t, C>, C::Error>,
             ) -> Result<Self, Self::Error> {
                 match expression {
                     Defined(defined) => Ok(defined),
@@ -765,14 +765,14 @@ macro_rules! impl_try_from {
             }
         }
 
-        impl<P> TryFrom<Expression<Proxy<$t, P>, P::Error>> for $t
+        impl<C> TryFrom<Expression<Proxy<$t, C>, C::Error>> for $t
         where
-            P: Constraint,
+            C: Constraint,
         {
-            type Error = P::Error;
+            type Error = C::Error;
 
             fn try_from(
-                expression: Expression<Proxy<$t, P>, P::Error>,
+                expression: Expression<Proxy<$t, C>, C::Error>,
             ) -> Result<Self, Self::Error> {
                 match expression {
                     Defined(defined) => Ok(defined.into()),

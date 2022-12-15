@@ -63,11 +63,11 @@ pub enum NanSet {}
 
 pub trait Member<T> {}
 
-pub trait SupersetOf<P> {}
+pub trait SupersetOf<C> {}
 
-pub trait SubsetOf<P> {}
+pub trait SubsetOf<C> {}
 
-impl<P, Q> SubsetOf<Q> for P where Q: SupersetOf<P> {}
+impl<C1, C2> SubsetOf<C2> for C1 where C2: SupersetOf<C1> {}
 
 /// Describes constraints on the set of floating-point values that a proxy type
 /// may represent.
@@ -130,21 +130,21 @@ impl Member<NanSet> for UnitConstraint {}
 
 impl Member<RealSet> for UnitConstraint {}
 
-impl<M> SupersetOf<FiniteConstraint<M>> for UnitConstraint {}
+impl<D> SupersetOf<FiniteConstraint<D>> for UnitConstraint {}
 
-impl<M> SupersetOf<NotNanConstraint<M>> for UnitConstraint {}
+impl<D> SupersetOf<NotNanConstraint<D>> for UnitConstraint {}
 
 /// Disallows `NaN`s.
 #[derive(Debug)]
-pub struct NotNanConstraint<M> {
-    phantom: PhantomData<fn() -> M>,
+pub struct NotNanConstraint<D> {
+    phantom: PhantomData<fn() -> D>,
 }
 
-impl<M> Constraint for NotNanConstraint<M>
+impl<D> Constraint for NotNanConstraint<D>
 where
-    M: Divergence,
+    D: Divergence,
 {
-    type Divergence = M;
+    type Divergence = D;
     type Error = ConstraintViolation;
 
     fn noncompliance<T>(inner: T) -> Option<Self::Error>
@@ -155,23 +155,23 @@ where
     }
 }
 
-impl<M> Member<InfinitySet> for NotNanConstraint<M> {}
+impl<D> Member<InfinitySet> for NotNanConstraint<D> {}
 
-impl<M> Member<RealSet> for NotNanConstraint<M> {}
+impl<D> Member<RealSet> for NotNanConstraint<D> {}
 
-impl<M> SupersetOf<FiniteConstraint<M>> for NotNanConstraint<M> {}
+impl<D> SupersetOf<FiniteConstraint<D>> for NotNanConstraint<D> {}
 
 /// Disallows `NaN`s and infinities.
 #[derive(Debug)]
-pub struct FiniteConstraint<M> {
-    phantom: PhantomData<fn() -> M>,
+pub struct FiniteConstraint<D> {
+    phantom: PhantomData<fn() -> D>,
 }
 
-impl<M> Constraint for FiniteConstraint<M>
+impl<D> Constraint for FiniteConstraint<D>
 where
-    M: Divergence,
+    D: Divergence,
 {
-    type Divergence = M;
+    type Divergence = D;
     type Error = ConstraintViolation;
 
     fn noncompliance<T>(inner: T) -> Option<Self::Error>
@@ -182,4 +182,4 @@ where
     }
 }
 
-impl<M> Member<RealSet> for FiniteConstraint<M> {}
+impl<D> Member<RealSet> for FiniteConstraint<D> {}

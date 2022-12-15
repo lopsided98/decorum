@@ -35,11 +35,11 @@ use crate::{
     ForeignFloat, Infinite, Nan, NotNan, Primitive, ToCanonicalBits, Total, UnaryReal,
 };
 
-pub type BranchOf<T> = <DivergenceOf<T> as Divergence>::Branch<T, ErrorOf<T>>;
-pub type ConstraintOf<T> = <T as ClosedProxy>::Constraint;
-pub type DivergenceOf<T> = <ConstraintOf<T> as Constraint>::Divergence;
-pub type ErrorOf<T> = <ConstraintOf<T> as Constraint>::Error;
-pub type ExpressionOf<T> = Expression<T, ErrorOf<T>>;
+pub type BranchOf<P> = <DivergenceOf<P> as Divergence>::Branch<P, ErrorOf<P>>;
+pub type ConstraintOf<P> = <P as ClosedProxy>::Constraint;
+pub type DivergenceOf<P> = <ConstraintOf<P> as Constraint>::Divergence;
+pub type ErrorOf<P> = <ConstraintOf<P> as Constraint>::Error;
+pub type ExpressionOf<P> = Expression<P, ErrorOf<P>>;
 
 /// A `Proxy` type that is closed over its primitive floating-point type and
 /// constraint.
@@ -75,12 +75,12 @@ struct SerdeContainer<T> {
 }
 
 #[cfg(feature = "serialize-serde")]
-impl<T, P> From<Proxy<T, P>> for SerdeContainer<T>
+impl<T, C> From<Proxy<T, C>> for SerdeContainer<T>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
-    fn from(proxy: Proxy<T, P>) -> Self {
+    fn from(proxy: Proxy<T, C>) -> Self {
         SerdeContainer {
             inner: proxy.into_inner(),
         }
@@ -125,23 +125,23 @@ where
     serde(
         bound(
             deserialize = "T: serde::Deserialize<'de> + Float + Primitive, \
-                           P: Constraint, \
-                           P::Error: Display",
+                           C: Constraint, \
+                           C::Error: Display",
             serialize = "T: Float + Primitive + serde::Serialize, \
-                         P: Constraint"
+                         C: Constraint"
         ),
         try_from = "SerdeContainer<T>",
         into = "SerdeContainer<T>"
     )
 )]
 #[repr(transparent)]
-pub struct Proxy<T, P> {
+pub struct Proxy<T, C> {
     inner: T,
     #[cfg_attr(feature = "serialize-serde", serde(skip))]
-    phantom: PhantomData<fn() -> P>,
+    phantom: PhantomData<fn() -> C>,
 }
 
-impl<T, P> Proxy<T, P> {
+impl<T, C> Proxy<T, C> {
     pub(crate) const fn unchecked(inner: T) -> Self {
         Proxy {
             inner,
@@ -171,10 +171,10 @@ impl<T, P> Proxy<T, P> {
     }
 }
 
-impl<T, P> Proxy<T, P>
+impl<T, C> Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     // TODO: Update documentation for rename from `new` to `try_new`.
     /// Creates a proxy from a primitive floating-point value.
@@ -214,8 +214,8 @@ where
     /// // `R64` does not allow `NaN`s, but `0.0 / 0.0` produces a `NaN`.
     /// let x = R64::new(0.0 / 0.0).unwrap(); // Panics.
     /// ```
-    pub fn try_new(inner: T) -> Result<Self, P::Error> {
-        P::compliance(inner).map(|inner| Proxy {
+    pub fn try_new(inner: T) -> Result<Self, C::Error> {
+        C::compliance(inner).map(|inner| Proxy {
             inner,
             phantom: PhantomData,
         })
@@ -271,9 +271,9 @@ where
     /// let x = R64::zero();
     /// let y = N64::from_subset(x);
     /// ```
-    pub fn from_subset<Q>(other: Proxy<T, Q>) -> Self
+    pub fn from_subset<C2>(other: Proxy<T, C2>) -> Self
     where
-        Q: Constraint + SubsetOf<P>,
+        C2: Constraint + SubsetOf<C>,
     {
         Self::unchecked(other.into_inner())
     }
@@ -292,9 +292,9 @@ where
     /// let x = R64::zero();
     /// let y: N64 = x.into_superset();
     /// ```
-    pub fn into_superset<Q>(self) -> Proxy<T, Q>
+    pub fn into_superset<C2>(self) -> Proxy<T, C2>
     where
-        Q: Constraint + SupersetOf<P>,
+        C2: Constraint + SupersetOf<C>,
     {
         Proxy::unchecked(self.into_inner())
     }
@@ -313,10 +313,10 @@ where
     ///
     /// Returns an error if any of the primitive floating-point values in the
     /// slice do not satisfy the constraints of the proxy.
-    pub fn try_from_slice<'a>(slice: &'a [T]) -> Result<&'a [Self], P::Error> {
+    pub fn try_from_slice<'a>(slice: &'a [T]) -> Result<&'a [Self], C::Error> {
         slice
             .iter()
-            .try_for_each(|inner| P::compliance(*inner).map(|_| ()))?;
+            .try_for_each(|inner| C::compliance(*inner).map(|_| ()))?;
         // SAFETY: `Proxy<T>` is `repr(transparent)` and has the same binary
         //         representation as its input type `T`. This means that it is
         //         safe to transmute `T` to `Proxy<T>`.
@@ -333,10 +333,10 @@ where
     ///
     /// Returns an error if any of the primitive floating-point values in the
     /// slice do not satisfy the constraints of the proxy.
-    pub fn try_from_mut_slice<'a>(slice: &'a mut [T]) -> Result<&'a mut [Self], P::Error> {
+    pub fn try_from_mut_slice<'a>(slice: &'a mut [T]) -> Result<&'a mut [Self], C::Error> {
         slice
             .iter()
-            .try_for_each(|inner| P::compliance(*inner).map(|_| ()))?;
+            .try_for_each(|inner| C::compliance(*inner).map(|_| ()))?;
         // SAFETY: `Proxy<T>` is `repr(transparent)` and has the same binary
         //         representation as its input type `T`. This means that it is
         //         safe to transmute `T` to `Proxy<T>`.
@@ -344,13 +344,13 @@ where
     }
 }
 
-impl<T, P> Proxy<T, P>
+impl<T, C> Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     pub fn new(inner: T) -> BranchOf<Self> {
-        P::branch(inner, |inner| Proxy {
+        C::branch(inner, |inner| Proxy {
             inner,
             phantom: PhantomData,
         })
@@ -370,17 +370,17 @@ where
         Proxy::unchecked(f(self.into_inner()))
     }
 
-    pub(crate) fn zip_map<Q, F>(self, other: Proxy<T, Q>, mut f: F) -> BranchOf<Self>
+    pub(crate) fn zip_map<C2, F>(self, other: Proxy<T, C2>, mut f: F) -> BranchOf<Self>
     where
-        Q: Constraint,
+        C2: Constraint,
         F: FnMut(T, T) -> T,
     {
         Self::new(f(self.into_inner(), other.into_inner()))
     }
 
-    pub(crate) fn zip_map_unchecked<Q, F>(self, other: Proxy<T, Q>, mut f: F) -> Self
+    pub(crate) fn zip_map_unchecked<C2, F>(self, other: Proxy<T, C2>, mut f: F) -> Self
     where
-        Q: Constraint,
+        C2: Constraint,
         F: FnMut(T, T) -> T,
     {
         Proxy::unchecked(f(self.into_inner(), other.into_inner()))
@@ -417,10 +417,10 @@ where
 }
 
 #[cfg(feature = "approx")]
-impl<T, P> AbsDiffEq for Proxy<T, P>
+impl<T, C> AbsDiffEq for Proxy<T, C>
 where
     T: AbsDiffEq<Epsilon = T> + Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Epsilon = Self;
 
@@ -434,10 +434,10 @@ where
     }
 }
 
-impl<T, P> Add for Proxy<T, P>
+impl<T, C> Add for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -446,10 +446,10 @@ where
     }
 }
 
-impl<T, P> Add<T> for Proxy<T, P>
+impl<T, C> Add<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -460,11 +460,11 @@ where
 
 // TODO:
 //#[cfg(all(nightly, feature = "unstable"))]
-//impl<T, P> Add<BranchOf<Self>> for Proxy<T, P>
+//impl<T, C> Add<BranchOf<Self>> for Proxy<T, C>
 //where
 //    BranchOf<Self>: Try,
 //    T: Float + Primitive,
-//    P: Constraint,
+//    C: Constraint,
 //{
 //    type Output = BranchOf<Self>;
 //
@@ -474,51 +474,51 @@ where
 //}
 //
 //#[cfg(all(nightly, feature = "unstable"))]
-//impl<T, P> Add<Proxy<T, P>> for BranchOf<Proxy<T, P>>
+//impl<T, C> Add<Proxy<T, C>> for BranchOf<Proxy<T, C>>
 //where
 //    Self: Try,
 //    T: Float + Primitive,
-//    P: Constraint,
+//    C: Constraint,
 //{
 //    type Output = Self;
 //
-//    fn add(self, other: Proxy<T, P>) -> Self::Output {
+//    fn add(self, other: Proxy<T, C>) -> Self::Output {
 //        self?.zip_map(other, Add::add)
 //    }
 //}
 
-impl<T, P> AddAssign for Proxy<T, P>
+impl<T, C> AddAssign for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn add_assign(&mut self, other: Self) {
         *self = *self + other;
     }
 }
 
-impl<T, P> AddAssign<T> for Proxy<T, P>
+impl<T, C> AddAssign<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn add_assign(&mut self, other: T) {
         *self = self.map(|inner| inner + other);
     }
 }
 
-impl<T, P> AsRef<T> for Proxy<T, P> {
+impl<T, C> AsRef<T> for Proxy<T, C> {
     fn as_ref(&self) -> &T {
         &self.inner
     }
 }
 
-impl<T, P> BinaryReal for Proxy<T, P>
+impl<T, C> BinaryReal for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     #[cfg(feature = "std")]
     fn div_euclid(self, n: Self) -> Self::Superset {
@@ -551,10 +551,10 @@ where
     }
 }
 
-impl<T, P> BinaryReal<T> for Proxy<T, P>
+impl<T, C> BinaryReal<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     #[cfg(feature = "std")]
     fn div_euclid(self, n: T) -> Self::Superset {
@@ -587,7 +587,7 @@ where
     }
 }
 
-impl<T, P> Bounded for Proxy<T, P>
+impl<T, C> Bounded for Proxy<T, C>
 where
     T: Float + Primitive,
 {
@@ -600,7 +600,7 @@ where
     }
 }
 
-impl<T, P> Clone for Proxy<T, P>
+impl<T, C> Clone for Proxy<T, C>
 where
     T: Clone,
 {
@@ -612,24 +612,24 @@ where
     }
 }
 
-impl<T, P> ClosedProxy for Proxy<T, P>
+impl<T, C> ClosedProxy for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Primitive = T;
-    type Constraint = P;
+    type Constraint = C;
 }
 
-impl<T, P> Codomain for Proxy<T, P>
+impl<T, C> Codomain for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Superset = BranchOf<Self>;
 }
 
-impl<T, P> Copy for Proxy<T, P> where T: Copy {}
+impl<T, C> Copy for Proxy<T, C> where T: Copy {}
 
 impl<T> Debug for Finite<T>
 where
@@ -658,10 +658,10 @@ where
     }
 }
 
-impl<T, P> Default for Proxy<T, P>
+impl<T, C> Default for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn default() -> Self {
         // There is no constraint that disallows real numbers such as zero.
@@ -669,7 +669,7 @@ where
     }
 }
 
-impl<T, P> Display for Proxy<T, P>
+impl<T, C> Display for Proxy<T, C>
 where
     T: Display,
 {
@@ -678,10 +678,10 @@ where
     }
 }
 
-impl<T, P> Div for Proxy<T, P>
+impl<T, C> Div for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -690,10 +690,10 @@ where
     }
 }
 
-impl<T, P> Div<T> for Proxy<T, P>
+impl<T, C> Div<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -702,29 +702,29 @@ where
     }
 }
 
-impl<T, P> DivAssign for Proxy<T, P>
+impl<T, C> DivAssign for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn div_assign(&mut self, other: Self) {
         *self = *self / other
     }
 }
 
-impl<T, P> DivAssign<T> for Proxy<T, P>
+impl<T, C> DivAssign<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn div_assign(&mut self, other: T) {
         *self = self.map(|inner| inner / other);
     }
 }
 
-impl<T, P> Encoding for Proxy<T, P>
+impl<T, C> Encoding for Proxy<T, C>
 where
     T: Float + Primitive,
 {
@@ -754,13 +754,13 @@ where
     }
 }
 
-impl<T, P> Eq for Proxy<T, P> where T: Float + Primitive {}
+impl<T, C> Eq for Proxy<T, C> where T: Float + Primitive {}
 
 // TODO: Bounds.
-impl<T, P> FloatConst for Proxy<T, P>
+impl<T, C> FloatConst for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn E() -> Self {
         <Self as UnaryReal>::E
@@ -827,11 +827,11 @@ where
     }
 }
 
-impl<T, P> ForeignFloat for Proxy<T, P>
+impl<T, C> ForeignFloat for Proxy<T, C>
 where
     T: IntrinsicOrd + Float + ForeignFloat + Num + NumCast + Primitive,
-    P: Constraint + Member<InfinitySet> + Member<NanSet>,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint + Member<InfinitySet> + Member<NanSet>,
+    C::Divergence: NonResidual<Self>,
 {
     fn infinity() -> Self {
         Infinite::INFINITY
@@ -1150,20 +1150,20 @@ where
     }
 }
 
-impl<P> From<Proxy<f32, P>> for f32
+impl<C> From<Proxy<f32, C>> for f32
 where
-    P: Constraint,
+    C: Constraint,
 {
-    fn from(proxy: Proxy<f32, P>) -> Self {
+    fn from(proxy: Proxy<f32, C>) -> Self {
         proxy.into_inner()
     }
 }
 
-impl<P> From<Proxy<f64, P>> for f64
+impl<C> From<Proxy<f64, C>> for f64
 where
-    P: Constraint,
+    C: Constraint,
 {
-    fn from(proxy: Proxy<f64, P>) -> Self {
+    fn from(proxy: Proxy<f64, C>) -> Self {
         proxy.into_inner()
     }
 }
@@ -1177,10 +1177,10 @@ where
     }
 }
 
-impl<T, P> FromPrimitive for Proxy<T, P>
+impl<T, C> FromPrimitive for Proxy<T, C>
 where
     T: Float + FromPrimitive + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn from_i8(value: i8) -> Option<Self> {
         T::from_i8(value).and_then(|inner| Proxy::try_new(inner).ok())
@@ -1231,11 +1231,11 @@ where
     }
 }
 
-impl<T, P> FromStr for Proxy<T, P>
+impl<T, C> FromStr for Proxy<T, C>
 where
     T: Float + FromStr + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     type Err = <T as FromStr>::Err;
 
@@ -1244,10 +1244,10 @@ where
     }
 }
 
-impl<T, P> Hash for Proxy<T, P>
+impl<T, C> Hash for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn hash<H>(&self, state: &mut H)
     where
@@ -1257,10 +1257,10 @@ where
     }
 }
 
-impl<T, P> Infinite for Proxy<T, P>
+impl<T, C> Infinite for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint + Member<InfinitySet>,
+    C: Constraint + Member<InfinitySet>,
 {
     const INFINITY: Self = Proxy::unchecked(T::INFINITY);
     const NEG_INFINITY: Self = Proxy::unchecked(T::NEG_INFINITY);
@@ -1274,20 +1274,20 @@ where
     }
 }
 
-impl<T, P> LowerExp for Proxy<T, P>
+impl<T, C> LowerExp for Proxy<T, C>
 where
     T: Float + LowerExp + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.as_ref().fmt(f)
     }
 }
 
-impl<T, P> Mul for Proxy<T, P>
+impl<T, C> Mul for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -1296,10 +1296,10 @@ where
     }
 }
 
-impl<T, P> Mul<T> for Proxy<T, P>
+impl<T, C> Mul<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -1308,32 +1308,32 @@ where
     }
 }
 
-impl<T, P> MulAssign for Proxy<T, P>
+impl<T, C> MulAssign for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn mul_assign(&mut self, other: Self) {
         *self = *self * other;
     }
 }
 
-impl<T, P> MulAssign<T> for Proxy<T, P>
+impl<T, C> MulAssign<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn mul_assign(&mut self, other: T) {
         *self = *self * other;
     }
 }
 
-impl<T, P> Nan for Proxy<T, P>
+impl<T, C> Nan for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint + Member<NanSet>,
+    C: Constraint + Member<NanSet>,
 {
     const NAN: Self = Proxy::unchecked(T::NAN);
 
@@ -1342,10 +1342,10 @@ where
     }
 }
 
-impl<T, P> Neg for Proxy<T, P>
+impl<T, C> Neg for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = Self;
 
@@ -1354,10 +1354,10 @@ where
     }
 }
 
-impl<T, P> Neg for ExpressionOf<Proxy<T, P>>
+impl<T, C> Neg for ExpressionOf<Proxy<T, C>>
 where
     T: Float + Primitive,
-    P: Constraint<Divergence = TryExpression>,
+    C: Constraint<Divergence = TryExpression>,
 {
     type Output = Self;
 
@@ -1366,11 +1366,11 @@ where
     }
 }
 
-impl<T, P> Num for Proxy<T, P>
+impl<T, C> Num for Proxy<T, C>
 where
     T: Float + Primitive + Num,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     // TODO: Differentiate between parse and contraint errors.
     type FromStrRadixErr = ();
@@ -1382,10 +1382,10 @@ where
     }
 }
 
-impl<T, P> NumCast for Proxy<T, P>
+impl<T, C> NumCast for Proxy<T, C>
 where
     T: Float + NumCast + Primitive + ToPrimitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn from<U>(value: U) -> Option<Self>
     where
@@ -1395,28 +1395,28 @@ where
     }
 }
 
-impl<T, P> One for Proxy<T, P>
+impl<T, C> One for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn one() -> Self {
         Proxy::unchecked(T::ONE)
     }
 }
 
-impl<T, P> Ord for Proxy<T, P>
+impl<T, C> Ord for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn cmp(&self, other: &Self) -> Ordering {
         FloatOrd::float_cmp(self.as_ref(), other.as_ref())
     }
 }
 
-impl<T, P> PartialEq for Proxy<T, P>
+impl<T, C> PartialEq for Proxy<T, C>
 where
     T: Float + Primitive,
 {
@@ -1425,10 +1425,10 @@ where
     }
 }
 
-impl<T, P> PartialEq<T> for Proxy<T, P>
+impl<T, C> PartialEq<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn eq(&self, other: &T) -> bool {
         if let Ok(other) = Self::try_new(*other) {
@@ -1440,20 +1440,20 @@ where
     }
 }
 
-impl<T, P> PartialOrd for Proxy<T, P>
+impl<T, C> PartialOrd for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(FloatOrd::float_cmp(self.as_ref(), other.as_ref()))
     }
 }
 
-impl<T, P> PartialOrd<T> for Proxy<T, P>
+impl<T, C> PartialOrd<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn partial_cmp(&self, other: &T) -> Option<Ordering> {
         Self::try_new(*other)
@@ -1462,11 +1462,11 @@ where
     }
 }
 
-impl<T, P> Product for Proxy<T, P>
+impl<T, C> Product for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn product<I>(input: I) -> Self
     where
@@ -1477,10 +1477,10 @@ where
 }
 
 #[cfg(feature = "approx")]
-impl<T, P> RelativeEq for Proxy<T, P>
+impl<T, C> RelativeEq for Proxy<T, C>
 where
     T: Float + Primitive + RelativeEq<Epsilon = T>,
-    P: Constraint,
+    C: Constraint,
 {
     fn default_max_relative() -> Self::Epsilon {
         Self::assert(T::default_max_relative())
@@ -1500,10 +1500,10 @@ where
     }
 }
 
-impl<T, P> Rem for Proxy<T, P>
+impl<T, C> Rem for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -1512,10 +1512,10 @@ where
     }
 }
 
-impl<T, P> Rem<T> for Proxy<T, P>
+impl<T, C> Rem<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -1524,33 +1524,33 @@ where
     }
 }
 
-impl<T, P> RemAssign for Proxy<T, P>
+impl<T, C> RemAssign for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn rem_assign(&mut self, other: Self) {
         *self = *self % other;
     }
 }
 
-impl<T, P> RemAssign<T> for Proxy<T, P>
+impl<T, C> RemAssign<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn rem_assign(&mut self, other: T) {
         *self = self.map(|inner| inner % other);
     }
 }
 
-impl<T, P> Signed for Proxy<T, P>
+impl<T, C> Signed for Proxy<T, C>
 where
     T: Float + Primitive + Num,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn abs(&self) -> Self {
         self.map_unchecked(UnaryReal::abs)
@@ -1586,10 +1586,10 @@ where
     }
 }
 
-impl<T, P> Sub for Proxy<T, P>
+impl<T, C> Sub for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -1598,10 +1598,10 @@ where
     }
 }
 
-impl<T, P> Sub<T> for Proxy<T, P>
+impl<T, C> Sub<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Output = BranchOf<Self>;
 
@@ -1610,33 +1610,33 @@ where
     }
 }
 
-impl<T, P> SubAssign for Proxy<T, P>
+impl<T, C> SubAssign for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn sub_assign(&mut self, other: Self) {
         *self = *self - other
     }
 }
 
-impl<T, P> SubAssign<T> for Proxy<T, P>
+impl<T, C> SubAssign<T> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn sub_assign(&mut self, other: T) {
         *self = self.map(|inner| inner - other)
     }
 }
 
-impl<T, P> Sum for Proxy<T, P>
+impl<T, C> Sum for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn sum<I>(input: I) -> Self
     where
@@ -1646,10 +1646,10 @@ where
     }
 }
 
-impl<T, P> ToCanonicalBits for Proxy<T, P>
+impl<T, C> ToCanonicalBits for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     type Bits = <T as ToCanonicalBits>::Bits;
 
@@ -1658,10 +1658,10 @@ where
     }
 }
 
-impl<T, P> ToPrimitive for Proxy<T, P>
+impl<T, C> ToPrimitive for Proxy<T, C>
 where
     T: Float + Primitive + ToPrimitive,
-    P: Constraint,
+    C: Constraint,
 {
     fn to_i8(&self) -> Option<i8> {
         self.into_inner().to_i8()
@@ -1713,12 +1713,12 @@ where
 }
 
 #[cfg(feature = "serialize-serde")]
-impl<T, P> TryFrom<SerdeContainer<T>> for Proxy<T, P>
+impl<T, C> TryFrom<SerdeContainer<T>> for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
-    type Error = P::Error;
+    type Error = C::Error;
 
     fn try_from(container: SerdeContainer<T>) -> Result<Self, Self::Error> {
         Self::try_new(container.inner)
@@ -1726,10 +1726,10 @@ where
 }
 
 #[cfg(feature = "approx")]
-impl<T, P> UlpsEq for Proxy<T, P>
+impl<T, C> UlpsEq for Proxy<T, C>
 where
     T: Float + Primitive + UlpsEq<Epsilon = T>,
-    P: Constraint,
+    C: Constraint,
 {
     fn default_max_ulps() -> u32 {
         T::default_max_ulps()
@@ -1741,10 +1741,10 @@ where
     }
 }
 
-impl<T, P> UnaryReal for Proxy<T, P>
+impl<T, C> UnaryReal for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
+    C: Constraint,
 {
     const ZERO: Self = Proxy::unchecked(UnaryReal::ZERO);
     const ONE: Self = Proxy::unchecked(UnaryReal::ONE);
@@ -1942,21 +1942,21 @@ where
     }
 }
 
-impl<T, P> UpperExp for Proxy<T, P>
+impl<T, C> UpperExp for Proxy<T, C>
 where
     T: Float + Primitive + UpperExp,
-    P: Constraint,
+    C: Constraint,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.as_ref().fmt(f)
     }
 }
 
-impl<T, P> Zero for Proxy<T, P>
+impl<T, C> Zero for Proxy<T, C>
 where
     T: Float + Primitive,
-    P: Constraint,
-    P::Divergence: NonResidual<Self>,
+    C: Constraint,
+    C::Divergence: NonResidual<Self>,
 {
     fn zero() -> Self {
         Proxy::unchecked(T::ZERO)
@@ -1979,13 +1979,13 @@ macro_rules! impl_binary_operation {
     (operation => $trait:ident :: $method:ident, |$left:ident, $right:ident| $f:block) => {
         macro_rules! impl_primitive_binary_operation {
             (primitive => $t:ty) => {
-                impl<P> $trait<Proxy<$t, P>> for $t
+                impl<C> $trait<Proxy<$t, C>> for $t
                 where
-                    P: Constraint,
+                    C: Constraint,
                 {
-                    type Output = BranchOf<Proxy<$t, P>>;
+                    type Output = BranchOf<Proxy<$t, C>>;
 
-                    fn $method(self, other: Proxy<$t, P>) -> Self::Output {
+                    fn $method(self, other: Proxy<$t, C>) -> Self::Output {
                         let $left = self;
                         let $right = other;
                         $f
@@ -2228,9 +2228,9 @@ macro_rules! impl_try_from {
         impl_try_from!(proxy => NotNan, primitive => $t);
     };
     (proxy => $p:ident, primitive => $t:ty) => {
-        impl<M> TryFrom<$t> for $p<$t, M>
+        impl<D> TryFrom<$t> for $p<$t, D>
         where
-            M: Divergence,
+            D: Divergence,
         {
             type Error = ConstraintViolation;
 
@@ -2239,14 +2239,14 @@ macro_rules! impl_try_from {
             }
         }
 
-        impl<'a, M> TryFrom<&'a $t> for &'a $p<$t, M>
+        impl<'a, D> TryFrom<&'a $t> for &'a $p<$t, D>
         where
-            M: Divergence,
+            D: Divergence,
         {
             type Error = ConstraintViolation;
 
             fn try_from(inner: &'a $t) -> Result<Self, Self::Error> {
-                ConstraintOf::<$p<$t, M>>::compliance(*inner).map(|_| {
+                ConstraintOf::<$p<$t, D>>::compliance(*inner).map(|_| {
                     // SAFETY: `Proxy<T>` is `repr(transparent)` and has the
                     //         same binary representation as its input type `T`.
                     //         This means that it is safe to transmute `T` to
@@ -2256,14 +2256,14 @@ macro_rules! impl_try_from {
             }
         }
 
-        impl<'a, M> TryFrom<&'a mut $t> for &'a mut $p<$t, M>
+        impl<'a, D> TryFrom<&'a mut $t> for &'a mut $p<$t, D>
         where
-            M: Divergence,
+            D: Divergence,
         {
             type Error = ConstraintViolation;
 
             fn try_from(inner: &'a mut $t) -> Result<Self, Self::Error> {
-                ConstraintOf::<$p<$t, M>>::compliance(*inner).map(move |_| {
+                ConstraintOf::<$p<$t, D>>::compliance(*inner).map(move |_| {
                     // SAFETY: `Proxy<T>` is `repr(transparent)` and has the
                     //         same binary representation as its input type `T`.
                     //         This means that it is safe to transmute `T` to
