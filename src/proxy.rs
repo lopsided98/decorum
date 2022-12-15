@@ -31,8 +31,8 @@ use crate::hash::FloatHash;
 #[cfg(feature = "std")]
 use crate::ForeignReal;
 use crate::{
-    with_binary_operations, with_primitives, BinaryReal, Codomain, Encoding, Finite, Float,
-    ForeignFloat, Infinite, Nan, NotNan, Primitive, ToCanonicalBits, Total, UnaryReal,
+    with_binary_operations, with_primitives, BinaryReal, Encoding, Finite, Float, ForeignFloat,
+    Function, Infinite, Nan, NotNan, Primitive, ToCanonicalBits, Total, UnaryReal,
 };
 
 pub type BranchOf<P> = <DivergenceOf<P> as Divergence>::Branch<P, ErrorOf<P>>;
@@ -521,32 +521,32 @@ where
     C: Constraint,
 {
     #[cfg(feature = "std")]
-    fn div_euclid(self, n: Self) -> Self::Superset {
+    fn div_euclid(self, n: Self) -> Self::Codomain {
         self.zip_map(n, BinaryReal::div_euclid)
     }
 
     #[cfg(feature = "std")]
-    fn rem_euclid(self, n: Self) -> Self::Superset {
+    fn rem_euclid(self, n: Self) -> Self::Codomain {
         self.zip_map(n, BinaryReal::rem_euclid)
     }
 
     #[cfg(feature = "std")]
-    fn pow(self, n: Self) -> Self::Superset {
+    fn pow(self, n: Self) -> Self::Codomain {
         self.zip_map(n, BinaryReal::pow)
     }
 
     #[cfg(feature = "std")]
-    fn log(self, base: Self) -> Self::Superset {
+    fn log(self, base: Self) -> Self::Codomain {
         self.zip_map(base, BinaryReal::log)
     }
 
     #[cfg(feature = "std")]
-    fn hypot(self, other: Self) -> Self::Superset {
+    fn hypot(self, other: Self) -> Self::Codomain {
         self.zip_map(other, BinaryReal::hypot)
     }
 
     #[cfg(feature = "std")]
-    fn atan2(self, other: Self) -> Self::Superset {
+    fn atan2(self, other: Self) -> Self::Codomain {
         self.zip_map(other, BinaryReal::atan2)
     }
 }
@@ -557,32 +557,32 @@ where
     C: Constraint,
 {
     #[cfg(feature = "std")]
-    fn div_euclid(self, n: T) -> Self::Superset {
+    fn div_euclid(self, n: T) -> Self::Codomain {
         self.map(|inner| BinaryReal::div_euclid(inner, n))
     }
 
     #[cfg(feature = "std")]
-    fn rem_euclid(self, n: T) -> Self::Superset {
+    fn rem_euclid(self, n: T) -> Self::Codomain {
         self.map(|inner| BinaryReal::rem_euclid(inner, n))
     }
 
     #[cfg(feature = "std")]
-    fn pow(self, n: T) -> Self::Superset {
+    fn pow(self, n: T) -> Self::Codomain {
         self.map(|inner| BinaryReal::pow(inner, n))
     }
 
     #[cfg(feature = "std")]
-    fn log(self, base: T) -> Self::Superset {
+    fn log(self, base: T) -> Self::Codomain {
         self.map(|inner| BinaryReal::log(inner, base))
     }
 
     #[cfg(feature = "std")]
-    fn hypot(self, other: T) -> Self::Superset {
+    fn hypot(self, other: T) -> Self::Codomain {
         self.map(|inner| BinaryReal::hypot(inner, other))
     }
 
     #[cfg(feature = "std")]
-    fn atan2(self, other: T) -> Self::Superset {
+    fn atan2(self, other: T) -> Self::Codomain {
         self.map(|inner| BinaryReal::atan2(inner, other))
     }
 }
@@ -621,12 +621,12 @@ where
     type Constraint = C;
 }
 
-impl<T, C> Codomain for Proxy<T, C>
+impl<T, C> Function for Proxy<T, C>
 where
     T: Float + Primitive,
     C: Constraint,
 {
-    type Superset = BranchOf<Self>;
+    type Codomain = BranchOf<Self>;
 }
 
 impl<T, C> Copy for Proxy<T, C> where T: Copy {}
@@ -1811,17 +1811,17 @@ where
         self.map_unchecked(UnaryReal::fract)
     }
 
-    fn recip(self) -> Self::Superset {
+    fn recip(self) -> Self::Codomain {
         self.map(UnaryReal::recip)
     }
 
     #[cfg(feature = "std")]
-    fn powi(self, n: i32) -> Self::Superset {
+    fn powi(self, n: i32) -> Self::Codomain {
         self.map(|inner| UnaryReal::powi(inner, n))
     }
 
     #[cfg(feature = "std")]
-    fn sqrt(self) -> Self::Superset {
+    fn sqrt(self) -> Self::Codomain {
         self.map(UnaryReal::sqrt)
     }
 
@@ -1831,42 +1831,42 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn exp(self) -> Self::Superset {
+    fn exp(self) -> Self::Codomain {
         self.map(UnaryReal::exp)
     }
 
     #[cfg(feature = "std")]
-    fn exp2(self) -> Self::Superset {
+    fn exp2(self) -> Self::Codomain {
         self.map(UnaryReal::exp2)
     }
 
     #[cfg(feature = "std")]
-    fn exp_m1(self) -> Self::Superset {
+    fn exp_m1(self) -> Self::Codomain {
         self.map(UnaryReal::exp_m1)
     }
 
     #[cfg(feature = "std")]
-    fn ln(self) -> Self::Superset {
+    fn ln(self) -> Self::Codomain {
         self.map(UnaryReal::ln)
     }
 
     #[cfg(feature = "std")]
-    fn log2(self) -> Self::Superset {
+    fn log2(self) -> Self::Codomain {
         self.map(UnaryReal::log2)
     }
 
     #[cfg(feature = "std")]
-    fn log10(self) -> Self::Superset {
+    fn log10(self) -> Self::Codomain {
         self.map(UnaryReal::log10)
     }
 
     #[cfg(feature = "std")]
-    fn ln_1p(self) -> Self::Superset {
+    fn ln_1p(self) -> Self::Codomain {
         self.map(UnaryReal::ln_1p)
     }
 
     #[cfg(feature = "std")]
-    fn to_degrees(self) -> Self::Superset {
+    fn to_degrees(self) -> Self::Codomain {
         self.map(UnaryReal::to_degrees)
     }
 
@@ -1886,17 +1886,17 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn tan(self) -> Self::Superset {
+    fn tan(self) -> Self::Codomain {
         self.map(UnaryReal::tan)
     }
 
     #[cfg(feature = "std")]
-    fn asin(self) -> Self::Superset {
+    fn asin(self) -> Self::Codomain {
         self.map(UnaryReal::asin)
     }
 
     #[cfg(feature = "std")]
-    fn acos(self) -> Self::Superset {
+    fn acos(self) -> Self::Codomain {
         self.map(UnaryReal::acos)
     }
 
@@ -1927,17 +1927,17 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn asinh(self) -> Self::Superset {
+    fn asinh(self) -> Self::Codomain {
         self.map(UnaryReal::asinh)
     }
 
     #[cfg(feature = "std")]
-    fn acosh(self) -> Self::Superset {
+    fn acosh(self) -> Self::Codomain {
         self.map(UnaryReal::acosh)
     }
 
     #[cfg(feature = "std")]
-    fn atanh(self) -> Self::Superset {
+    fn atanh(self) -> Self::Codomain {
         self.map(UnaryReal::atanh)
     }
 }

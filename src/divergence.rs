@@ -10,7 +10,7 @@ use crate::constraint::{Constraint, ExpectConstrained as _};
 use crate::proxy::{ClosedProxy, ErrorOf, ExpressionOf, Proxy};
 use crate::sealed::Sealed;
 use crate::{
-    with_binary_operations, with_primitives, BinaryReal, Codomain, Float, Infinite, Primitive,
+    with_binary_operations, with_primitives, BinaryReal, Float, Function, Infinite, Primitive,
     UnaryReal,
 };
 
@@ -215,32 +215,32 @@ where
     C: Constraint<Divergence = TryExpression>,
 {
     #[cfg(feature = "std")]
-    fn div_euclid(self, n: Self) -> Self::Superset {
+    fn div_euclid(self, n: Self) -> Self::Codomain {
         BinaryReal::div_euclid(try_expression!(self), try_expression!(n))
     }
 
     #[cfg(feature = "std")]
-    fn rem_euclid(self, n: Self) -> Self::Superset {
+    fn rem_euclid(self, n: Self) -> Self::Codomain {
         BinaryReal::rem_euclid(try_expression!(self), try_expression!(n))
     }
 
     #[cfg(feature = "std")]
-    fn pow(self, n: Self) -> Self::Superset {
+    fn pow(self, n: Self) -> Self::Codomain {
         BinaryReal::pow(try_expression!(self), try_expression!(n))
     }
 
     #[cfg(feature = "std")]
-    fn log(self, base: Self) -> Self::Superset {
+    fn log(self, base: Self) -> Self::Codomain {
         BinaryReal::log(try_expression!(self), try_expression!(base))
     }
 
     #[cfg(feature = "std")]
-    fn hypot(self, other: Self) -> Self::Superset {
+    fn hypot(self, other: Self) -> Self::Codomain {
         BinaryReal::hypot(try_expression!(self), try_expression!(other))
     }
 
     #[cfg(feature = "std")]
-    fn atan2(self, other: Self) -> Self::Superset {
+    fn atan2(self, other: Self) -> Self::Codomain {
         BinaryReal::atan2(try_expression!(self), try_expression!(other))
     }
 }
@@ -252,7 +252,7 @@ where
     C: Constraint<Divergence = TryExpression>,
 {
     #[cfg(feature = "std")]
-    fn div_euclid(self, n: T) -> Self::Superset {
+    fn div_euclid(self, n: T) -> Self::Codomain {
         BinaryReal::div_euclid(
             try_expression!(self),
             try_expression!(Proxy::<T, C>::new(n)),
@@ -260,7 +260,7 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn rem_euclid(self, n: T) -> Self::Superset {
+    fn rem_euclid(self, n: T) -> Self::Codomain {
         BinaryReal::rem_euclid(
             try_expression!(self),
             try_expression!(Proxy::<T, C>::new(n)),
@@ -268,7 +268,7 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn pow(self, n: T) -> Self::Superset {
+    fn pow(self, n: T) -> Self::Codomain {
         BinaryReal::pow(
             try_expression!(self),
             try_expression!(Proxy::<T, C>::new(n)),
@@ -276,7 +276,7 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn log(self, base: T) -> Self::Superset {
+    fn log(self, base: T) -> Self::Codomain {
         BinaryReal::log(
             try_expression!(self),
             try_expression!(Proxy::<T, C>::new(base)),
@@ -284,7 +284,7 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn hypot(self, other: T) -> Self::Superset {
+    fn hypot(self, other: T) -> Self::Codomain {
         BinaryReal::hypot(
             try_expression!(self),
             try_expression!(Proxy::<T, C>::new(other)),
@@ -292,7 +292,7 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn atan2(self, other: T) -> Self::Superset {
+    fn atan2(self, other: T) -> Self::Codomain {
         BinaryReal::atan2(
             try_expression!(self),
             try_expression!(Proxy::<T, C>::new(other)),
@@ -307,43 +307,43 @@ where
     C: Constraint<Divergence = TryExpression>,
 {
     #[cfg(feature = "std")]
-    fn div_euclid(self, n: Proxy<T, C>) -> Self::Superset {
+    fn div_euclid(self, n: Proxy<T, C>) -> Self::Codomain {
         BinaryReal::div_euclid(try_expression!(self), n)
     }
 
     #[cfg(feature = "std")]
-    fn rem_euclid(self, n: Proxy<T, C>) -> Self::Superset {
+    fn rem_euclid(self, n: Proxy<T, C>) -> Self::Codomain {
         BinaryReal::rem_euclid(try_expression!(self), n)
     }
 
     #[cfg(feature = "std")]
-    fn pow(self, n: Proxy<T, C>) -> Self::Superset {
+    fn pow(self, n: Proxy<T, C>) -> Self::Codomain {
         BinaryReal::pow(try_expression!(self), n)
     }
 
     #[cfg(feature = "std")]
-    fn log(self, base: Proxy<T, C>) -> Self::Superset {
+    fn log(self, base: Proxy<T, C>) -> Self::Codomain {
         BinaryReal::log(try_expression!(self), base)
     }
 
     #[cfg(feature = "std")]
-    fn hypot(self, other: Proxy<T, C>) -> Self::Superset {
+    fn hypot(self, other: Proxy<T, C>) -> Self::Codomain {
         BinaryReal::hypot(try_expression!(self), other)
     }
 
     #[cfg(feature = "std")]
-    fn atan2(self, other: Proxy<T, C>) -> Self::Superset {
+    fn atan2(self, other: Proxy<T, C>) -> Self::Codomain {
         BinaryReal::atan2(try_expression!(self), other)
     }
 }
 
-impl<T, C> Codomain for ExpressionOf<Proxy<T, C>>
+impl<T, C> Function for ExpressionOf<Proxy<T, C>>
 where
     ErrorOf<Proxy<T, C>>: UndefinedError,
     T: Float + Primitive,
     C: Constraint<Divergence = TryExpression>,
 {
-    type Superset = Self;
+    type Codomain = Self;
 }
 
 impl<T, C> From<T> for Expression<Proxy<T, C>, ErrorOf<Proxy<T, C>>>
@@ -543,17 +543,17 @@ where
         self.map(UnaryReal::fract)
     }
 
-    fn recip(self) -> Self::Superset {
+    fn recip(self) -> Self::Codomain {
         self.and_then(UnaryReal::recip)
     }
 
     #[cfg(feature = "std")]
-    fn powi(self, n: i32) -> Self::Superset {
+    fn powi(self, n: i32) -> Self::Codomain {
         self.and_then(|defined| UnaryReal::powi(defined, n))
     }
 
     #[cfg(feature = "std")]
-    fn sqrt(self) -> Self::Superset {
+    fn sqrt(self) -> Self::Codomain {
         self.and_then(UnaryReal::sqrt)
     }
 
@@ -563,42 +563,42 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn exp(self) -> Self::Superset {
+    fn exp(self) -> Self::Codomain {
         self.and_then(UnaryReal::exp)
     }
 
     #[cfg(feature = "std")]
-    fn exp2(self) -> Self::Superset {
+    fn exp2(self) -> Self::Codomain {
         self.and_then(UnaryReal::exp2)
     }
 
     #[cfg(feature = "std")]
-    fn exp_m1(self) -> Self::Superset {
+    fn exp_m1(self) -> Self::Codomain {
         self.and_then(UnaryReal::exp_m1)
     }
 
     #[cfg(feature = "std")]
-    fn ln(self) -> Self::Superset {
+    fn ln(self) -> Self::Codomain {
         self.and_then(UnaryReal::ln)
     }
 
     #[cfg(feature = "std")]
-    fn log2(self) -> Self::Superset {
+    fn log2(self) -> Self::Codomain {
         self.and_then(UnaryReal::log2)
     }
 
     #[cfg(feature = "std")]
-    fn log10(self) -> Self::Superset {
+    fn log10(self) -> Self::Codomain {
         self.and_then(UnaryReal::log10)
     }
 
     #[cfg(feature = "std")]
-    fn ln_1p(self) -> Self::Superset {
+    fn ln_1p(self) -> Self::Codomain {
         self.and_then(UnaryReal::ln_1p)
     }
 
     #[cfg(feature = "std")]
-    fn to_degrees(self) -> Self::Superset {
+    fn to_degrees(self) -> Self::Codomain {
         self.and_then(UnaryReal::to_degrees)
     }
 
@@ -618,17 +618,17 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn tan(self) -> Self::Superset {
+    fn tan(self) -> Self::Codomain {
         self.and_then(UnaryReal::tan)
     }
 
     #[cfg(feature = "std")]
-    fn asin(self) -> Self::Superset {
+    fn asin(self) -> Self::Codomain {
         self.and_then(UnaryReal::asin)
     }
 
     #[cfg(feature = "std")]
-    fn acos(self) -> Self::Superset {
+    fn acos(self) -> Self::Codomain {
         self.and_then(UnaryReal::acos)
     }
 
@@ -664,17 +664,17 @@ where
     }
 
     #[cfg(feature = "std")]
-    fn asinh(self) -> Self::Superset {
+    fn asinh(self) -> Self::Codomain {
         self.and_then(UnaryReal::asinh)
     }
 
     #[cfg(feature = "std")]
-    fn acosh(self) -> Self::Superset {
+    fn acosh(self) -> Self::Codomain {
         self.and_then(UnaryReal::acosh)
     }
 
     #[cfg(feature = "std")]
-    fn atanh(self) -> Self::Superset {
+    fn atanh(self) -> Self::Codomain {
         self.and_then(UnaryReal::atanh)
     }
 }

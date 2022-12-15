@@ -101,7 +101,7 @@ use crate::cmp::IntrinsicOrd;
 use crate::constraint::{FiniteConstraint, NotNanConstraint, UnitConstraint};
 use crate::divergence::{Assert, TryExpression};
 use crate::proxy::{ExpressionOf, Proxy};
-use crate::real::{BinaryReal, Codomain, Real, UnaryReal};
+use crate::real::{BinaryReal, Function, Real, UnaryReal};
 
 mod sealed {
     use core::convert::Infallible;
@@ -322,9 +322,9 @@ impl Encoding for f64 {
 /// **and directly expose the details of that encoding**, including infinities,
 /// `NaN`s, and operations on real numbers. This trait is implemented by
 /// primitive floating-point types and the `Total` proxy type.
-pub trait Float: Encoding + Infinite + IntrinsicOrd + Nan + Real<Superset = Self> {}
+pub trait Float: Encoding + Infinite + IntrinsicOrd + Nan + Real<Codomain = Self> {}
 
-impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real<Superset = T> {}
+impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real<Codomain = T> {}
 
 /// Primitive floating-point types.
 pub trait Primitive: Copy + Sealed {}
@@ -409,8 +409,8 @@ macro_rules! impl_primitive {
 
         impl Primitive for $t {}
 
-        impl Codomain for $t {
-            type Superset = $t;
+        impl Function for $t {
+            type Codomain = $t;
         }
 
         impl Sealed for $t {}
@@ -485,17 +485,17 @@ macro_rules! impl_primitive {
                 <$t>::fract(self)
             }
 
-            fn recip(self) -> Self::Superset {
+            fn recip(self) -> Self::Codomain {
                 <$t>::recip(self)
             }
 
             #[cfg(feature = "std")]
-            fn powi(self, n: i32) -> Self::Superset {
+            fn powi(self, n: i32) -> Self::Codomain {
                 <$t>::powi(self, n)
             }
 
             #[cfg(feature = "std")]
-            fn sqrt(self) -> Self::Superset {
+            fn sqrt(self) -> Self::Codomain {
                 <$t>::sqrt(self)
             }
 
@@ -505,42 +505,42 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn exp(self) -> Self::Superset {
+            fn exp(self) -> Self::Codomain {
                 <$t>::exp(self)
             }
 
             #[cfg(feature = "std")]
-            fn exp2(self) -> Self::Superset {
+            fn exp2(self) -> Self::Codomain {
                 <$t>::exp2(self)
             }
 
             #[cfg(feature = "std")]
-            fn exp_m1(self) -> Self::Superset {
+            fn exp_m1(self) -> Self::Codomain {
                 <$t>::exp_m1(self)
             }
 
             #[cfg(feature = "std")]
-            fn ln(self) -> Self::Superset {
+            fn ln(self) -> Self::Codomain {
                 <$t>::ln(self)
             }
 
             #[cfg(feature = "std")]
-            fn log2(self) -> Self::Superset {
+            fn log2(self) -> Self::Codomain {
                 <$t>::log2(self)
             }
 
             #[cfg(feature = "std")]
-            fn log10(self) -> Self::Superset {
+            fn log10(self) -> Self::Codomain {
                 <$t>::log10(self)
             }
 
             #[cfg(feature = "std")]
-            fn ln_1p(self) -> Self::Superset {
+            fn ln_1p(self) -> Self::Codomain {
                 <$t>::ln_1p(self)
             }
 
             #[cfg(feature = "std")]
-            fn to_degrees(self) -> Self::Superset {
+            fn to_degrees(self) -> Self::Codomain {
                 <$t>::to_degrees(self)
             }
 
@@ -560,17 +560,17 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn tan(self) -> Self::Superset {
+            fn tan(self) -> Self::Codomain {
                 <$t>::tan(self)
             }
 
             #[cfg(feature = "std")]
-            fn asin(self) -> Self::Superset {
+            fn asin(self) -> Self::Codomain {
                 <$t>::asin(self)
             }
 
             #[cfg(feature = "std")]
-            fn acos(self) -> Self::Superset {
+            fn acos(self) -> Self::Codomain {
                 <$t>::acos(self)
             }
 
@@ -600,44 +600,44 @@ macro_rules! impl_primitive {
             }
 
             #[cfg(feature = "std")]
-            fn asinh(self) -> Self::Superset {
+            fn asinh(self) -> Self::Codomain {
                 <$t>::asinh(self)
             }
 
             #[cfg(feature = "std")]
-            fn acosh(self) -> Self::Superset {
+            fn acosh(self) -> Self::Codomain {
                 <$t>::acosh(self)
             }
 
             #[cfg(feature = "std")]
-            fn atanh(self) -> Self::Superset {
+            fn atanh(self) -> Self::Codomain {
                 <$t>::atanh(self)
             }
         }
 
         impl BinaryReal<$t> for $t {
             #[cfg(feature = "std")]
-            fn div_euclid(self, n: Self) -> Self::Superset {
+            fn div_euclid(self, n: Self) -> Self::Codomain {
                 <$t>::div_euclid(self, n)
             }
 
             #[cfg(feature = "std")]
-            fn rem_euclid(self, n: Self) -> Self::Superset {
+            fn rem_euclid(self, n: Self) -> Self::Codomain {
                 <$t>::rem_euclid(self, n)
             }
 
             #[cfg(feature = "std")]
-            fn pow(self, n: Self) -> Self::Superset {
+            fn pow(self, n: Self) -> Self::Codomain {
                 <$t>::powf(self, n)
             }
 
             #[cfg(feature = "std")]
-            fn log(self, base: Self) -> Self::Superset {
+            fn log(self, base: Self) -> Self::Codomain {
                 <$t>::log(self, base)
             }
 
             #[cfg(feature = "std")]
-            fn hypot(self, other: Self) -> Self::Superset {
+            fn hypot(self, other: Self) -> Self::Codomain {
                 <$t>::hypot(self, other)
             }
 
