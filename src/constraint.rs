@@ -36,7 +36,7 @@ impl UndefinedError for ConstraintViolation {
     }
 }
 
-pub trait ExpectConstrained<T>: Sized {
+pub(crate) trait ExpectConstrained<T>: Sized {
     fn expect_constrained(self) -> T;
 }
 
