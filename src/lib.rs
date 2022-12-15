@@ -199,6 +199,8 @@ where
 }
 
 /// Floating-point representations that expose infinities.
+// This trait is implemented by trivial `Copy` types.
+#[allow(clippy::wrong_self_convention)]
 pub trait Infinite: Copy {
     const INFINITY: Self;
     const NEG_INFINITY: Self;
@@ -208,6 +210,8 @@ pub trait Infinite: Copy {
 }
 
 /// Floating-point representations that expose `NaN`s.
+// This trait is implemented by trivial `Copy` types.
+#[allow(clippy::wrong_self_convention)]
 pub trait Nan: Copy {
     /// A representation of `NaN`.
     ///
@@ -223,6 +227,8 @@ pub trait Nan: Copy {
 /// Provides values and operations that describe the encoding of an IEEE-754
 /// floating-point value. Infinities and `NaN`s are described by the `Infinite`
 /// and `NaN` sub-traits.
+// This trait is implemented by trivial `Copy` types.
+#[allow(clippy::wrong_self_convention)]
 pub trait Encoding: Copy {
     const MAX_FINITE: Self;
     const MIN_FINITE: Self;
