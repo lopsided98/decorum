@@ -110,6 +110,7 @@ mod sealed {
 
     impl Sealed for Infallible {}
 }
+use crate::sealed::Sealed;
 
 /// Floating-point representation with total ordering.
 pub type Total<T> = Proxy<T, UnitConstraint>;
@@ -320,7 +321,7 @@ pub trait Float: Encoding + Infinite + IntrinsicOrd + Nan + Real<Superset = Self
 impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real<Superset = T> {}
 
 /// Primitive floating-point types.
-pub trait Primitive: Copy {}
+pub trait Primitive: Copy + Sealed {}
 
 fn _sanity() {
     use crate::real::FloatEndoreal;
@@ -405,6 +406,8 @@ macro_rules! impl_primitive {
         impl Codomain for $t {
             type Superset = $t;
         }
+
+        impl Sealed for $t {}
 
         impl UnaryReal for $t {
             // TODO: The propagation from a constant in a module requires that
