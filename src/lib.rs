@@ -193,7 +193,7 @@ where
 }
 
 /// Floating-point representations that expose infinities.
-pub trait Infinite: Sized {
+pub trait Infinite: Copy {
     const INFINITY: Self;
     const NEG_INFINITY: Self;
 
@@ -202,7 +202,7 @@ pub trait Infinite: Sized {
 }
 
 /// Floating-point representations that expose `NaN`s.
-pub trait Nan: Sized {
+pub trait Nan: Copy {
     /// A representation of `NaN`.
     ///
     /// For primitive floating-point types, `NaN` is incomparable. Therefore,
@@ -217,7 +217,7 @@ pub trait Nan: Sized {
 /// Provides values and operations that describe the encoding of an IEEE-754
 /// floating-point value. Infinities and `NaN`s are described by the `Infinite`
 /// and `NaN` sub-traits.
-pub trait Encoding: Sized {
+pub trait Encoding: Copy {
     const MAX_FINITE: Self;
     const MIN_FINITE: Self;
     const MIN_POSITIVE_NORMAL: Self;
