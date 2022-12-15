@@ -80,10 +80,10 @@
 extern crate std;
 
 pub mod cmp;
-mod constraint;
+pub mod constraint;
 pub mod divergence;
 pub mod hash;
-mod proxy;
+pub mod proxy;
 pub mod real;
 
 use core::mem;
@@ -100,11 +100,16 @@ pub(crate) use num_traits::Float as ForeignFloat;
 use crate::cmp::IntrinsicOrd;
 use crate::constraint::{FiniteConstraint, NotNanConstraint, UnitConstraint};
 use crate::divergence::{Assert, TryExpression};
-use crate::proxy::ExpressionOf;
+use crate::proxy::{ExpressionOf, Proxy};
 use crate::real::{BinaryReal, Codomain, Real, UnaryReal};
 
-pub use crate::constraint::ConstraintViolation;
-pub use crate::proxy::Proxy;
+mod sealed {
+    use core::convert::Infallible;
+
+    pub trait Sealed {}
+
+    impl Sealed for Infallible {}
+}
 
 /// Floating-point representation with total ordering.
 pub type Total<T> = Proxy<T, UnitConstraint>;

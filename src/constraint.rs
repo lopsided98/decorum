@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use crate::cmp::UndefinedError;
 use crate::divergence::Divergence;
+use crate::sealed::Sealed;
 use crate::{Float, Primitive};
 
 const VIOLATION_MESSAGE: &str = "floating-point constraint violated";
@@ -58,16 +59,23 @@ where
 }
 
 pub enum RealSet {}
+
 pub enum InfinitySet {}
+
 pub enum NanSet {}
 
-pub trait Member<T> {}
+pub trait Member<T>: Sealed {}
 
-pub trait SupersetOf<C> {}
+pub trait SupersetOf<C>: Sealed {}
 
-pub trait SubsetOf<C> {}
+pub trait SubsetOf<C>: Sealed {}
 
-impl<C1, C2> SubsetOf<C2> for C1 where C2: SupersetOf<C1> {}
+impl<C1, C2> SubsetOf<C2> for C1
+where
+    C1: Sealed,
+    C2: SupersetOf<C1>,
+{
+}
 
 /// Describes constraints on the set of floating-point values that a proxy type
 /// may represent.
@@ -130,6 +138,8 @@ impl Member<NanSet> for UnitConstraint {}
 
 impl Member<RealSet> for UnitConstraint {}
 
+impl Sealed for UnitConstraint {}
+
 impl<D> SupersetOf<FiniteConstraint<D>> for UnitConstraint {}
 
 impl<D> SupersetOf<NotNanConstraint<D>> for UnitConstraint {}
@@ -159,6 +169,8 @@ impl<D> Member<InfinitySet> for NotNanConstraint<D> {}
 
 impl<D> Member<RealSet> for NotNanConstraint<D> {}
 
+impl<D> Sealed for NotNanConstraint<D> {}
+
 impl<D> SupersetOf<FiniteConstraint<D>> for NotNanConstraint<D> {}
 
 /// Disallows `NaN`s and infinities.
@@ -183,3 +195,5 @@ where
 }
 
 impl<D> Member<RealSet> for FiniteConstraint<D> {}
+
+impl<D> Sealed for FiniteConstraint<D> {}

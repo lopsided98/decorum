@@ -8,12 +8,11 @@ use core::ops::{ControlFlow, FromResidual, Try};
 use crate::cmp::UndefinedError;
 use crate::constraint::{Constraint, ExpectConstrained as _};
 use crate::proxy::{ClosedProxy, ErrorOf, ExpressionOf, Proxy};
+use crate::sealed::Sealed;
 use crate::{
     with_binary_operations, with_primitives, BinaryReal, Codomain, Float, Infinite, Primitive,
     UnaryReal,
 };
-
-pub use crate::proxy::BranchOf;
 
 pub use Expression::Defined;
 pub use Expression::Undefined;
@@ -30,7 +29,7 @@ macro_rules! expression {
     };
 }
 
-pub trait Divergence {
+pub trait Divergence: Sealed {
     type Branch<T, E>;
 
     fn from_output<T, E>(output: T) -> Self::Branch<T, E>;
@@ -93,6 +92,8 @@ impl Divergence for Assert {
     }
 }
 
+impl Sealed for Assert {}
+
 pub enum TryExpression {}
 
 impl Divergence for TryExpression {
@@ -109,6 +110,8 @@ impl Divergence for TryExpression {
         Undefined(residual)
     }
 }
+
+impl Sealed for TryExpression {}
 
 pub enum TryOption {}
 
@@ -127,6 +130,8 @@ impl Divergence for TryOption {
     }
 }
 
+impl Sealed for TryOption {}
+
 pub enum TryResult {}
 
 impl Divergence for TryResult {
@@ -143,6 +148,8 @@ impl Divergence for TryResult {
         Err(residual)
     }
 }
+
+impl Sealed for TryResult {}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Expression<T, E = ()> {
