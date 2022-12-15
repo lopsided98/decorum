@@ -18,7 +18,7 @@ pub use Expression::Defined;
 pub use Expression::Undefined;
 
 #[macro_export]
-macro_rules! expression {
+macro_rules! try_expression {
     ($x:expr) => {
         match $x {
             Expression::Defined(inner) => inner,
@@ -216,32 +216,32 @@ where
 {
     #[cfg(feature = "std")]
     fn div_euclid(self, n: Self) -> Self::Superset {
-        BinaryReal::div_euclid(expression!(self), expression!(n))
+        BinaryReal::div_euclid(try_expression!(self), try_expression!(n))
     }
 
     #[cfg(feature = "std")]
     fn rem_euclid(self, n: Self) -> Self::Superset {
-        BinaryReal::rem_euclid(expression!(self), expression!(n))
+        BinaryReal::rem_euclid(try_expression!(self), try_expression!(n))
     }
 
     #[cfg(feature = "std")]
     fn pow(self, n: Self) -> Self::Superset {
-        BinaryReal::pow(expression!(self), expression!(n))
+        BinaryReal::pow(try_expression!(self), try_expression!(n))
     }
 
     #[cfg(feature = "std")]
     fn log(self, base: Self) -> Self::Superset {
-        BinaryReal::log(expression!(self), expression!(base))
+        BinaryReal::log(try_expression!(self), try_expression!(base))
     }
 
     #[cfg(feature = "std")]
     fn hypot(self, other: Self) -> Self::Superset {
-        BinaryReal::hypot(expression!(self), expression!(other))
+        BinaryReal::hypot(try_expression!(self), try_expression!(other))
     }
 
     #[cfg(feature = "std")]
     fn atan2(self, other: Self) -> Self::Superset {
-        BinaryReal::atan2(expression!(self), expression!(other))
+        BinaryReal::atan2(try_expression!(self), try_expression!(other))
     }
 }
 
@@ -253,32 +253,50 @@ where
 {
     #[cfg(feature = "std")]
     fn div_euclid(self, n: T) -> Self::Superset {
-        BinaryReal::div_euclid(expression!(self), expression!(Proxy::<T, C>::new(n)))
+        BinaryReal::div_euclid(
+            try_expression!(self),
+            try_expression!(Proxy::<T, C>::new(n)),
+        )
     }
 
     #[cfg(feature = "std")]
     fn rem_euclid(self, n: T) -> Self::Superset {
-        BinaryReal::rem_euclid(expression!(self), expression!(Proxy::<T, C>::new(n)))
+        BinaryReal::rem_euclid(
+            try_expression!(self),
+            try_expression!(Proxy::<T, C>::new(n)),
+        )
     }
 
     #[cfg(feature = "std")]
     fn pow(self, n: T) -> Self::Superset {
-        BinaryReal::pow(expression!(self), expression!(Proxy::<T, C>::new(n)))
+        BinaryReal::pow(
+            try_expression!(self),
+            try_expression!(Proxy::<T, C>::new(n)),
+        )
     }
 
     #[cfg(feature = "std")]
     fn log(self, base: T) -> Self::Superset {
-        BinaryReal::log(expression!(self), expression!(Proxy::<T, C>::new(base)))
+        BinaryReal::log(
+            try_expression!(self),
+            try_expression!(Proxy::<T, C>::new(base)),
+        )
     }
 
     #[cfg(feature = "std")]
     fn hypot(self, other: T) -> Self::Superset {
-        BinaryReal::hypot(expression!(self), expression!(Proxy::<T, C>::new(other)))
+        BinaryReal::hypot(
+            try_expression!(self),
+            try_expression!(Proxy::<T, C>::new(other)),
+        )
     }
 
     #[cfg(feature = "std")]
     fn atan2(self, other: T) -> Self::Superset {
-        BinaryReal::atan2(expression!(self), expression!(Proxy::<T, C>::new(other)))
+        BinaryReal::atan2(
+            try_expression!(self),
+            try_expression!(Proxy::<T, C>::new(other)),
+        )
     }
 }
 
@@ -290,32 +308,32 @@ where
 {
     #[cfg(feature = "std")]
     fn div_euclid(self, n: Proxy<T, C>) -> Self::Superset {
-        BinaryReal::div_euclid(expression!(self), n)
+        BinaryReal::div_euclid(try_expression!(self), n)
     }
 
     #[cfg(feature = "std")]
     fn rem_euclid(self, n: Proxy<T, C>) -> Self::Superset {
-        BinaryReal::rem_euclid(expression!(self), n)
+        BinaryReal::rem_euclid(try_expression!(self), n)
     }
 
     #[cfg(feature = "std")]
     fn pow(self, n: Proxy<T, C>) -> Self::Superset {
-        BinaryReal::pow(expression!(self), n)
+        BinaryReal::pow(try_expression!(self), n)
     }
 
     #[cfg(feature = "std")]
     fn log(self, base: Proxy<T, C>) -> Self::Superset {
-        BinaryReal::log(expression!(self), base)
+        BinaryReal::log(try_expression!(self), base)
     }
 
     #[cfg(feature = "std")]
     fn hypot(self, other: Proxy<T, C>) -> Self::Superset {
-        BinaryReal::hypot(expression!(self), other)
+        BinaryReal::hypot(try_expression!(self), other)
     }
 
     #[cfg(feature = "std")]
     fn atan2(self, other: Proxy<T, C>) -> Self::Superset {
-        BinaryReal::atan2(expression!(self), other)
+        BinaryReal::atan2(try_expression!(self), other)
     }
 }
 
@@ -683,8 +701,8 @@ macro_rules! impl_binary_operation {
                     type Output = ExpressionOf<Proxy<$t, C>>;
 
                     fn $method(self, other: ExpressionOf<Proxy<$t, C>>) -> Self::Output {
-                        let $left = expression!(Proxy::<_, C>::new(self));
-                        let $right = expression!(other);
+                        let $left = try_expression!(Proxy::<_, C>::new(self));
+                        let $right = try_expression!(other);
                         $f
                     }
                 }
@@ -701,7 +719,7 @@ macro_rules! impl_binary_operation {
 
             fn $method(self, other: ExpressionOf<Self>) -> Self::Output {
                 let $left = self;
-                let $right = expression!(other);
+                let $right = try_expression!(other);
                 $f
             }
         }
@@ -714,7 +732,7 @@ macro_rules! impl_binary_operation {
             type Output = Self;
 
             fn $method(self, other: Proxy<T, C>) -> Self::Output {
-                let $left = expression!(self);
+                let $left = try_expression!(self);
                 let $right = other;
                 $f
             }
@@ -728,8 +746,8 @@ macro_rules! impl_binary_operation {
             type Output = Self;
 
             fn $method(self, other: Self) -> Self::Output {
-                let $left = expression!(self);
-                let $right = expression!(other);
+                let $left = try_expression!(self);
+                let $right = try_expression!(other);
                 $f
             }
         }
@@ -742,8 +760,8 @@ macro_rules! impl_binary_operation {
             type Output = Self;
 
             fn $method(self, other: T) -> Self::Output {
-                let $left = expression!(self);
-                let $right = expression!(Proxy::<_, C>::new(other));
+                let $left = try_expression!(self);
+                let $right = try_expression!(Proxy::<_, C>::new(other));
                 $f
             }
         }
