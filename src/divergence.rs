@@ -361,9 +361,9 @@ impl<T, E> From<Expression<T, E>> for Result<T, E> {
 
 #[cfg(all(nightly, feature = "unstable"))]
 impl<T, E> FromResidual for Expression<T, E> {
-    fn from_residual(error: Result<Infallible, E>) -> Self {
-        match error {
-            Err(error) => Undefined(error),
+    fn from_residual(expression: Expression<Infallible, E>) -> Self {
+        match expression {
+            Undefined(undefined) => Undefined(undefined),
             _ => unreachable!(),
         }
     }
@@ -421,7 +421,7 @@ where
 #[cfg(all(nightly, feature = "unstable"))]
 impl<T, E> Try for Expression<T, E> {
     type Output = T;
-    type Residual = Result<Infallible, E>;
+    type Residual = Expression<Infallible, E>;
 
     fn from_output(output: T) -> Self {
         Defined(output)
@@ -430,7 +430,7 @@ impl<T, E> Try for Expression<T, E> {
     fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
         match self {
             Defined(defined) => ControlFlow::Continue(defined),
-            Undefined(undefined) => ControlFlow::Break(Err(undefined)),
+            Undefined(undefined) => ControlFlow::Break(Undefined(undefined)),
         }
     }
 }
