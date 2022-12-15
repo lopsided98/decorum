@@ -189,7 +189,7 @@ where
             }
             else {
                 let exponent = u64::from(unsafe { mem::transmute::<i16, u16>(exponent) });
-                let sign = if sign > 0 { 1u64 } else { 0u64 };
+                let sign = u64::from(sign > 0);
                 (mantissa & MANTISSA_MASK)
                     | ((exponent << 52) & EXPONENT_MASK)
                     | ((sign << 63) & SIGN_MASK)
