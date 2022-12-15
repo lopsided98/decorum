@@ -443,13 +443,10 @@ fn partial_min_max<'t, T>(a: &'t T, b: &'t T) -> Option<(&'t T, &'t T)>
 where
     T: PartialOrd,
 {
-    match a.partial_cmp(b) {
-        Some(ordering) => Some(match ordering {
-            Ordering::Less | Ordering::Equal => (a, b),
-            _ => (b, a),
-        }),
-        _ => None,
-    }
+    a.partial_cmp(b).map(|ordering| match ordering {
+        Ordering::Less | Ordering::Equal => (a, b),
+        _ => (b, a),
+    })
 }
 
 #[cfg(test)]

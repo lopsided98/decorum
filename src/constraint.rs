@@ -161,7 +161,7 @@ where
     where
         T: Float + Primitive,
     {
-        inner.is_nan().then(|| ConstraintViolation)
+        inner.is_nan().then_some(ConstraintViolation)
     }
 }
 
@@ -190,7 +190,7 @@ where
     where
         T: Float + Primitive,
     {
-        (inner.is_nan() || inner.is_infinite()).then(|| ConstraintViolation)
+        (inner.is_nan() || inner.is_infinite()).then_some(ConstraintViolation)
     }
 }
 
