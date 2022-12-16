@@ -1,5 +1,5 @@
-use std::convert::{TryFrom, TryInto};
-use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
+use core::convert::{TryFrom, TryInto};
+use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 use crate::cmp::IntrinsicOrd;
 use crate::{Float, Infinite, Primitive};
