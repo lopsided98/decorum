@@ -201,7 +201,7 @@ where
 /// Floating-point representations that expose infinities.
 // This trait is implemented by trivial `Copy` types.
 #[allow(clippy::wrong_self_convention)]
-pub trait Infinite: Copy {
+pub trait Infinite: Sized {
     const INFINITY: Self;
     const NEG_INFINITY: Self;
 
@@ -212,7 +212,7 @@ pub trait Infinite: Copy {
 /// Floating-point representations that expose `NaN`s.
 // This trait is implemented by trivial `Copy` types.
 #[allow(clippy::wrong_self_convention)]
-pub trait Nan: Copy {
+pub trait Nan: Sized {
     /// A representation of `NaN`.
     ///
     /// For primitive floating-point types, `NaN` is incomparable. Therefore,
@@ -229,7 +229,7 @@ pub trait Nan: Copy {
 /// and `NaN` sub-traits.
 // This trait is implemented by trivial `Copy` types.
 #[allow(clippy::wrong_self_convention)]
-pub trait Encoding: Copy {
+pub trait Encoding: Sized {
     const MAX_FINITE: Self;
     const MIN_FINITE: Self;
     const MIN_POSITIVE_NORMAL: Self;
