@@ -148,6 +148,10 @@ pub trait ExtendedReal: Infinite + Real {}
 
 impl<T> ExtendedReal for T where T: Infinite + Real {}
 
+pub trait Endoreal: Endofunction + Real {}
+
+impl<T> Endoreal for T where T: Endofunction + Real {}
+
 pub trait FloatReal<T>: BinaryReal<T> + Real + TryFrom<T> + TryInto<T>
 where
     T: Float + Primitive,
@@ -161,7 +165,7 @@ where
 {
 }
 
-pub trait FloatEndoreal<T>: Endofunction + FloatReal<T> + From<T>
+pub trait FloatEndoreal<T>: Endoreal + FloatReal<T> + From<T>
 where
     T: Float + Primitive,
 {

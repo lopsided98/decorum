@@ -329,6 +329,7 @@ impl<T> Float for T where T: Encoding + Infinite + IntrinsicOrd + Nan + Real<Cod
 /// Primitive floating-point types.
 pub trait Primitive: Copy + Sealed {}
 
+// TODO: Remove this. Of course.
 fn _sanity() {
     use crate::real::FloatEndoreal;
 
