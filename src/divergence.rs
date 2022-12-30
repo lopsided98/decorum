@@ -1,5 +1,5 @@
 use core::cmp::Ordering;
-use core::convert::{Infallible, TryFrom};
+use core::convert::Infallible;
 use core::fmt::Debug;
 use core::ops::{Add, Div, Mul, Rem, Sub};
 #[cfg(all(nightly, feature = "unstable"))]

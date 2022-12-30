@@ -4,7 +4,6 @@
 #[cfg(feature = "approx")]
 use approx::{AbsDiffEq, RelativeEq, UlpsEq};
 use core::cmp::Ordering;
-use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display, Formatter, LowerExp, UpperExp};
 use core::hash::{Hash, Hasher};
 use core::iter::{Product, Sum};
@@ -208,7 +207,6 @@ where
     /// Creating proxies from primitive floating-point values:
     ///
     /// ```rust
-    /// use core::convert::TryInto;
     /// use decorum::R64;
     ///
     /// fn f(x: R64) -> R64 {
@@ -2269,8 +2267,6 @@ impl_try_from!();
 
 #[cfg(test)]
 mod tests {
-    use core::convert::TryInto;
-
     use crate::{Finite, Float, Infinite, Nan, NotNan, Real, Total, UnaryReal, N32, R32};
 
     #[test]
