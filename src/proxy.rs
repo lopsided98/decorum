@@ -21,7 +21,7 @@ use num_traits::{
 #[cfg(feature = "serialize-serde")]
 use serde_derive::{Deserialize, Serialize};
 
-use crate::cmp::{self, FloatEq, FloatOrd, IntrinsicOrd};
+use crate::cmp::{FloatEq, FloatOrd, IntrinsicOrd};
 use crate::constraint::{
     Constraint, ConstraintViolation, ExpectConstrained, InfinitySet, Member, NanSet, SubsetOf,
     SupersetOf,
@@ -168,6 +168,20 @@ impl<T, C> Proxy<T, C> {
     /// ```
     pub fn into_inner(self) -> T {
         self.inner
+    }
+
+    pub(crate) fn map_unchecked<F>(self, mut f: F) -> Self
+    where
+        F: FnMut(T) -> T,
+    {
+        Proxy::unchecked(f(self.into_inner()))
+    }
+
+    pub(crate) fn with_inner<U, F>(self, mut f: F) -> U
+    where
+        F: FnMut(T) -> U,
+    {
+        f(self.inner)
     }
 }
 
@@ -363,27 +377,12 @@ where
         Self::new(f(self.into_inner()))
     }
 
-    pub(crate) fn map_unchecked<F>(self, mut f: F) -> Self
-    where
-        F: FnMut(T) -> T,
-    {
-        Proxy::unchecked(f(self.into_inner()))
-    }
-
     pub(crate) fn zip_map<C2, F>(self, other: Proxy<T, C2>, mut f: F) -> BranchOf<Self>
     where
         C2: Constraint,
         F: FnMut(T, T) -> T,
     {
         Self::new(f(self.into_inner(), other.into_inner()))
-    }
-
-    pub(crate) fn zip_map_unchecked<C2, F>(self, other: Proxy<T, C2>, mut f: F) -> Self
-    where
-        C2: Constraint,
-        F: FnMut(T, T) -> T,
-    {
-        Proxy::unchecked(f(self.into_inner(), other.into_inner()))
     }
 }
 
@@ -842,11 +841,11 @@ where
     }
 
     fn is_infinite(self) -> bool {
-        Infinite::is_infinite(self)
+        self.with_inner(ForeignFloat::is_infinite)
     }
 
     fn is_finite(self) -> bool {
-        Infinite::is_finite(self)
+        self.with_inner(ForeignFloat::is_finite)
     }
 
     fn nan() -> Self {
@@ -854,7 +853,7 @@ where
     }
 
     fn is_nan(self) -> bool {
-        Nan::is_nan(self)
+        self.with_inner(ForeignFloat::is_nan)
     }
 
     fn max_value() -> Self {
@@ -874,13 +873,11 @@ where
     }
 
     fn min(self, other: Self) -> Self {
-        // Avoid panics by propagating `NaN`s for incomparable values.
-        self.zip_map(other, cmp::min_or_undefined)
+        self.zip_map(other, ForeignFloat::min)
     }
 
     fn max(self, other: Self) -> Self {
-        // Avoid panics by propagating `NaN`s for incomparable values.
-        self.zip_map(other, cmp::max_or_undefined)
+        self.zip_map(other, ForeignFloat::max)
     }
 
     fn neg_zero() -> Self {
@@ -888,129 +885,131 @@ where
     }
 
     fn is_sign_positive(self) -> bool {
-        Encoding::is_sign_positive(self.into_inner())
+        self.with_inner(ForeignFloat::is_sign_positive)
     }
 
     fn is_sign_negative(self) -> bool {
-        Encoding::is_sign_negative(self.into_inner())
+        self.with_inner(ForeignFloat::is_sign_negative)
     }
 
     fn signum(self) -> Self {
-        self.map(UnaryReal::signum)
+        self.map(ForeignFloat::signum)
     }
 
     fn abs(self) -> Self {
-        self.map(UnaryReal::abs)
+        self.map(ForeignFloat::abs)
     }
 
     fn classify(self) -> FpCategory {
-        Encoding::classify(self)
+        self.with_inner(ForeignFloat::classify)
     }
 
     fn is_normal(self) -> bool {
-        Encoding::is_normal(self)
+        self.with_inner(ForeignFloat::is_normal)
     }
 
     fn integer_decode(self) -> (u64, i16, i8) {
-        Encoding::integer_decode(self)
+        self.with_inner(ForeignFloat::integer_decode)
     }
 
     fn floor(self) -> Self {
-        self.map(UnaryReal::floor)
+        self.map(ForeignFloat::floor)
     }
 
     fn ceil(self) -> Self {
-        self.map(UnaryReal::ceil)
+        self.map(ForeignFloat::ceil)
     }
 
     fn round(self) -> Self {
-        self.map(UnaryReal::round)
+        self.map(ForeignFloat::round)
     }
 
     fn trunc(self) -> Self {
-        self.map(UnaryReal::trunc)
+        self.map(ForeignFloat::trunc)
     }
 
     fn fract(self) -> Self {
-        self.map(UnaryReal::fract)
+        self.map(ForeignFloat::fract)
     }
 
     fn recip(self) -> Self {
-        self.map(UnaryReal::recip)
+        self.map(ForeignFloat::recip)
     }
 
     #[cfg(feature = "std")]
     fn mul_add(self, a: Self, b: Self) -> Self {
+        let a = a.into_inner();
+        let b = b.into_inner();
         // TODO: This implementation requires a `ForeignFloat` bound and
         //       forwards to its `mul_add`. Consider supporting `mul_add` via a
         //       trait that is more specific to floating-point encoding than
         //       `BinaryReal` and friends.
-        self.map(|inner| ForeignFloat::mul_add(inner, a.into_inner(), b.into_inner()))
+        self.map(|inner| ForeignFloat::mul_add(inner, a, b))
     }
 
     #[cfg(feature = "std")]
     fn abs_sub(self, other: Self) -> Self {
-        self.zip_map(other, |a, b| UnaryReal::abs(a - b))
+        self.zip_map(other, ForeignFloat::abs_sub)
     }
 
     #[cfg(feature = "std")]
     fn powi(self, n: i32) -> Self {
-        UnaryReal::powi(self, n)
+        self.map(|inner| ForeignFloat::powi(inner, n))
     }
 
     #[cfg(feature = "std")]
     fn powf(self, n: Self) -> Self {
-        BinaryReal::pow(self, n)
+        self.zip_map(n, ForeignFloat::powf)
     }
 
     #[cfg(feature = "std")]
     fn sqrt(self) -> Self {
-        UnaryReal::sqrt(self)
+        self.map(ForeignFloat::sqrt)
     }
 
     #[cfg(feature = "std")]
     fn cbrt(self) -> Self {
-        UnaryReal::cbrt(self)
+        self.map(ForeignFloat::cbrt)
     }
 
     #[cfg(feature = "std")]
     fn exp(self) -> Self {
-        UnaryReal::exp(self)
+        self.map(ForeignFloat::exp)
     }
 
     #[cfg(feature = "std")]
     fn exp2(self) -> Self {
-        UnaryReal::exp2(self)
+        self.map(ForeignFloat::exp2)
     }
 
     #[cfg(feature = "std")]
     fn exp_m1(self) -> Self {
-        UnaryReal::exp_m1(self)
+        self.map(ForeignFloat::exp_m1)
     }
 
     #[cfg(feature = "std")]
     fn log(self, base: Self) -> Self {
-        BinaryReal::log(self, base)
+        self.zip_map(base, ForeignFloat::log)
     }
 
     #[cfg(feature = "std")]
     fn ln(self) -> Self {
-        UnaryReal::ln(self)
+        self.map(ForeignFloat::ln)
     }
 
     #[cfg(feature = "std")]
     fn log2(self) -> Self {
-        UnaryReal::log2(self)
+        self.map(ForeignFloat::log2)
     }
 
     #[cfg(feature = "std")]
     fn log10(self) -> Self {
-        UnaryReal::log10(self)
+        self.map(ForeignFloat::log10)
     }
 
     #[cfg(feature = "std")]
     fn ln_1p(self) -> Self {
-        UnaryReal::ln_1p(self)
+        self.map(ForeignFloat::ln_1p)
     }
 
     #[cfg(feature = "std")]
@@ -1020,32 +1019,32 @@ where
 
     #[cfg(feature = "std")]
     fn sin(self) -> Self {
-        UnaryReal::sin(self)
+        self.map(ForeignFloat::sin)
     }
 
     #[cfg(feature = "std")]
     fn cos(self) -> Self {
-        UnaryReal::cos(self)
+        self.map(ForeignFloat::cos)
     }
 
     #[cfg(feature = "std")]
     fn tan(self) -> Self {
-        UnaryReal::tan(self)
+        self.map(ForeignFloat::tan)
     }
 
     #[cfg(feature = "std")]
     fn asin(self) -> Self {
-        UnaryReal::asin(self)
+        self.map(ForeignFloat::asin)
     }
 
     #[cfg(feature = "std")]
     fn acos(self) -> Self {
-        UnaryReal::acos(self)
+        self.map(ForeignFloat::acos)
     }
 
     #[cfg(feature = "std")]
     fn atan(self) -> Self {
-        UnaryReal::atan(self)
+        self.map(ForeignFloat::atan)
     }
 
     #[cfg(feature = "std")]
@@ -1055,47 +1054,48 @@ where
 
     #[cfg(feature = "std")]
     fn sin_cos(self) -> (Self, Self) {
-        UnaryReal::sin_cos(self)
+        let (sin, cos) = ForeignFloat::sin_cos(self.into_inner());
+        (Proxy::<_, C>::new(sin), Proxy::<_, C>::new(cos))
     }
 
     #[cfg(feature = "std")]
     fn sinh(self) -> Self {
-        UnaryReal::sinh(self)
+        self.map(ForeignFloat::sinh)
     }
 
     #[cfg(feature = "std")]
     fn cosh(self) -> Self {
-        UnaryReal::cosh(self)
+        self.map(ForeignFloat::cosh)
     }
 
     #[cfg(feature = "std")]
     fn tanh(self) -> Self {
-        UnaryReal::tanh(self)
+        self.map(ForeignFloat::tanh)
     }
 
     #[cfg(feature = "std")]
     fn asinh(self) -> Self {
-        UnaryReal::asinh(self)
+        self.map(ForeignFloat::asinh)
     }
 
     #[cfg(feature = "std")]
     fn acosh(self) -> Self {
-        UnaryReal::acosh(self)
+        self.map(ForeignFloat::acosh)
     }
 
     #[cfg(feature = "std")]
     fn atanh(self) -> Self {
-        UnaryReal::atanh(self)
+        self.map(ForeignFloat::atanh)
     }
 
     #[cfg(not(feature = "std"))]
     fn to_degrees(self) -> Self {
-        UnaryReal::to_degrees(self)
+        ForeignFloat::to_degrees(self)
     }
 
     #[cfg(not(feature = "std"))]
     fn to_radians(self) -> Self {
-        UnaryReal::to_radians(self)
+        ForeignFloat::to_radians(self)
     }
 }
 
@@ -1402,7 +1402,7 @@ where
     C::Divergence: NonResidual<Self>,
 {
     fn one() -> Self {
-        Proxy::unchecked(T::ONE)
+        UnaryReal::ONE
     }
 }
 
@@ -1548,41 +1548,28 @@ where
 
 impl<T, C> Signed for Proxy<T, C>
 where
-    T: Float + Primitive + Num,
+    T: Float + Primitive + Signed,
     C: Constraint,
     C::Divergence: NonResidual<Self>,
 {
     fn abs(&self) -> Self {
-        self.map_unchecked(UnaryReal::abs)
+        self.map_unchecked(|inner| Signed::abs(&inner))
     }
 
-    #[cfg(feature = "std")]
     fn abs_sub(&self, other: &Self) -> Self {
-        self.zip_map_unchecked(*other, |a, b| (a - b).abs())
-    }
-
-    #[cfg(not(feature = "std"))]
-    fn abs_sub(&self, other: &Self) -> Self {
-        self.zip_map_unchecked(*other, |a, b| {
-            if a <= b {
-                Zero::zero()
-            }
-            else {
-                a - b
-            }
-        })
+        self.zip_map(*other, |a, b| Signed::abs_sub(&a, &b))
     }
 
     fn signum(&self) -> Self {
-        self.map_unchecked(|inner| inner.signum())
+        self.map_unchecked(|inner| Signed::signum(&inner))
     }
 
     fn is_positive(&self) -> bool {
-        self.into_inner().is_positive()
+        Signed::is_positive(self.as_ref())
     }
 
     fn is_negative(&self) -> bool {
-        self.into_inner().is_negative()
+        Signed::is_negative(self.as_ref())
     }
 }
 
@@ -1642,7 +1629,7 @@ where
     where
         I: Iterator<Item = Self>,
     {
-        input.fold(Zero::zero(), |a, b| a + b)
+        input.fold(UnaryReal::ZERO, |a, b| a + b)
     }
 }
 
@@ -1664,51 +1651,51 @@ where
     C: Constraint,
 {
     fn to_i8(&self) -> Option<i8> {
-        self.into_inner().to_i8()
+        self.as_ref().to_i8()
     }
 
     fn to_u8(&self) -> Option<u8> {
-        self.into_inner().to_u8()
+        self.as_ref().to_u8()
     }
 
     fn to_i16(&self) -> Option<i16> {
-        self.into_inner().to_i16()
+        self.as_ref().to_i16()
     }
 
     fn to_u16(&self) -> Option<u16> {
-        self.into_inner().to_u16()
+        self.as_ref().to_u16()
     }
 
     fn to_i32(&self) -> Option<i32> {
-        self.into_inner().to_i32()
+        self.as_ref().to_i32()
     }
 
     fn to_u32(&self) -> Option<u32> {
-        self.into_inner().to_u32()
+        self.as_ref().to_u32()
     }
 
     fn to_i64(&self) -> Option<i64> {
-        self.into_inner().to_i64()
+        self.as_ref().to_i64()
     }
 
     fn to_u64(&self) -> Option<u64> {
-        self.into_inner().to_u64()
+        self.as_ref().to_u64()
     }
 
     fn to_isize(&self) -> Option<isize> {
-        self.into_inner().to_isize()
+        self.as_ref().to_isize()
     }
 
     fn to_usize(&self) -> Option<usize> {
-        self.into_inner().to_usize()
+        self.as_ref().to_usize()
     }
 
     fn to_f32(&self) -> Option<f32> {
-        self.into_inner().to_f32()
+        self.as_ref().to_f32()
     }
 
     fn to_f64(&self) -> Option<f64> {
-        self.into_inner().to_f64()
+        self.as_ref().to_f64()
     }
 }
 
@@ -1959,11 +1946,11 @@ where
     C::Divergence: NonResidual<Self>,
 {
     fn zero() -> Self {
-        Proxy::unchecked(T::ZERO)
+        UnaryReal::ZERO
     }
 
     fn is_zero(&self) -> bool {
-        self.into_inner().is_zero()
+        self.as_ref().is_zero()
     }
 }
 
@@ -2021,7 +2008,10 @@ macro_rules! impl_foreign_real {
     };
     (proxy => $p:ident, primitive => $t:ty) => {
         #[cfg(feature = "std")]
-        impl ForeignReal for $p<$t> {
+        impl<C> ForeignReal for $p<$t, C>
+        where
+            C: NonResidual<Self>,
+        {
             fn max_value() -> Self {
                 Encoding::MAX_FINITE
             }
@@ -2039,177 +2029,178 @@ macro_rules! impl_foreign_real {
             }
 
             fn min(self, other: Self) -> Self {
-                // Avoid panics by propagating `NaN`s for incomparable values.
-                self.zip_map(other, cmp::min_or_undefined)
+                self.zip_map(other, ForeignReal::min)
             }
 
             fn max(self, other: Self) -> Self {
-                // Avoid panics by propagating `NaN`s for incomparable values.
-                self.zip_map(other, cmp::max_or_undefined)
+                self.zip_map(other, ForeignReal::max)
             }
 
             fn is_sign_positive(self) -> bool {
-                Encoding::is_sign_positive(self)
+                self.with_inner(ForeignReal::is_sign_positive)
             }
 
             fn is_sign_negative(self) -> bool {
-                Encoding::is_sign_negative(self)
+                self.with_inner(ForeignReal::is_sign_negative)
             }
 
             fn signum(self) -> Self {
-                Signed::signum(&self)
+                self.map(ForeignReal::signum)
             }
 
             fn abs(self) -> Self {
-                Signed::abs(&self)
+                self.map(ForeignReal::abs)
             }
 
             fn floor(self) -> Self {
-                UnaryReal::floor(self)
+                self.map(ForeignReal::floor)
             }
 
             fn ceil(self) -> Self {
-                UnaryReal::ceil(self)
+                self.map(ForeignReal::ceil)
             }
 
             fn round(self) -> Self {
-                UnaryReal::round(self)
+                self.map(ForeignReal::round)
             }
 
             fn trunc(self) -> Self {
-                UnaryReal::trunc(self)
+                self.map(ForeignReal::trunc)
             }
 
             fn fract(self) -> Self {
-                UnaryReal::fract(self)
+                self.map(ForeignReal::fract)
             }
 
             fn recip(self) -> Self {
-                UnaryReal::recip(self)
+                self.map(ForeignReal::recip)
             }
 
             fn mul_add(self, a: Self, b: Self) -> Self {
-                self.map(|inner| inner.mul_add(a.into_inner(), b.into_inner()))
+                let a = a.into_inner();
+                let b = b.into_inner();
+                self.map(|inner| inner.mul_add(a, b))
             }
 
             fn abs_sub(self, other: Self) -> Self {
-                self.zip_map(other, ForeignFloat::abs_sub)
+                self.zip_map(other, ForeignReal::abs_sub)
             }
 
             fn powi(self, n: i32) -> Self {
-                UnaryReal::powi(self, n)
+                self.map(|inner| ForeignReal::powi(inner, n))
             }
 
             fn powf(self, n: Self) -> Self {
-                BinaryReal::pow(self, n)
+                self.zip_map(n, ForeignReal::powf)
             }
 
             fn sqrt(self) -> Self {
-                UnaryReal::sqrt(self)
+                self.map(ForeignReal::sqrt)
             }
 
             fn cbrt(self) -> Self {
-                UnaryReal::cbrt(self)
+                self.map(ForeignReal::cbrt)
             }
 
             fn exp(self) -> Self {
-                UnaryReal::exp(self)
+                self.map(ForeignReal::exp)
             }
 
             fn exp2(self) -> Self {
-                UnaryReal::exp2(self)
+                self.map(ForeignReal::exp2)
             }
 
             fn exp_m1(self) -> Self {
-                UnaryReal::exp_m1(self)
+                self.map(ForeignReal::exp_m1)
             }
 
             fn log(self, base: Self) -> Self {
-                BinaryReal::log(self, base)
+                self.zip_map(base, ForeignReal::log)
             }
 
             fn ln(self) -> Self {
-                UnaryReal::ln(self)
+                self.map(ForeignReal::ln)
             }
 
             fn log2(self) -> Self {
-                UnaryReal::log2(self)
+                self.map(ForeignReal::log2)
             }
 
             fn log10(self) -> Self {
-                UnaryReal::log10(self)
+                self.map(ForeignReal::log10)
             }
 
             fn to_degrees(self) -> Self {
-                self.map(ForeignFloat::to_degrees)
+                self.map(ForeignReal::to_degrees)
             }
 
             fn to_radians(self) -> Self {
-                self.map(ForeignFloat::to_radians)
+                self.map(ForeignReal::to_radians)
             }
 
             fn ln_1p(self) -> Self {
-                UnaryReal::ln_1p(self)
+                self.map(ForeignReal::ln_1p)
             }
 
             fn hypot(self, other: Self) -> Self {
-                BinaryReal::hypot(self, other)
+                self.zip_map(other, ForeignReal::hypot)
             }
 
             fn sin(self) -> Self {
-                UnaryReal::sin(self)
+                self.map(ForeignReal::sin)
             }
 
             fn cos(self) -> Self {
-                UnaryReal::cos(self)
+                self.map(ForeignReal::cos)
             }
 
             fn tan(self) -> Self {
-                UnaryReal::tan(self)
+                self.map(ForeignReal::tan)
             }
 
             fn asin(self) -> Self {
-                UnaryReal::asin(self)
+                self.map(ForeignReal::asin)
             }
 
             fn acos(self) -> Self {
-                UnaryReal::acos(self)
+                self.map(ForeignReal::acos)
             }
 
             fn atan(self) -> Self {
-                UnaryReal::atan(self)
+                self.map(ForeignReal::atan)
             }
 
             fn atan2(self, other: Self) -> Self {
-                BinaryReal::atan2(self, other)
+                self.zip_map(other, ForeignReal::atan2)
             }
 
             fn sin_cos(self) -> (Self, Self) {
-                UnaryReal::sin_cos(self)
+                let (sin, cos) = self.with_inner(ForeignReal::sin_cos);
+                ($p::<_, C>::new(sin), $p::<_, C>::new(cos))
             }
 
             fn sinh(self) -> Self {
-                UnaryReal::sinh(self)
+                self.map(ForeignReal::sinh)
             }
 
             fn cosh(self) -> Self {
-                UnaryReal::cosh(self)
+                self.map(ForeignReal::cosh)
             }
 
             fn tanh(self) -> Self {
-                UnaryReal::tanh(self)
+                self.map(ForeignReal::tanh)
             }
 
             fn asinh(self) -> Self {
-                UnaryReal::asinh(self)
+                self.map(ForeignReal::asinh)
             }
 
             fn acosh(self) -> Self {
-                UnaryReal::acosh(self)
+                self.map(ForeignReal::acosh)
             }
 
             fn atanh(self) -> Self {
-                UnaryReal::atanh(self)
+                self.map(ForeignReal::atanh)
             }
         }
     };
